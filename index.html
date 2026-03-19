@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>家計簿アプリ</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --primary: #6366f1;
+      --primary-hover: #4f46e5;
+      --primary-light: rgba(99,102,241,0.08);
+      --bg: #f0f2f5;
+      --card: #ffffff;
+      --text: #111827;
+      --text-secondary: #6b7280;
+      --border: #e5e7eb;
+      --success: #10b981;
+      --danger: #f43f5e;
+      --gradient: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a78bfa 100%);
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.04), 0 1px 4px rgba(0,0,0,0.04);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.04), 0 2px 12px rgba(0,0,0,0.06);
+      --shadow-lg: 0 8px 24px rgba(0,0,0,0.08);
+      --radius: 16px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+
+    .header {
+      background: var(--gradient);
+      color: white;
+      padding: 20px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(99,102,241,0.3);
+    }
+
+    .header h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
+
+    .tabs {
+      display: flex;
+      gap: 6px;
+      padding: 16px 28px;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .tab {
+      padding: 10px 22px;
+      border: none;
+      border-radius: 10px;
+      background: transparent;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      transition: all 0.25s ease;
+    }
+
+    .tab:hover { background: var(--primary-light); color: var(--primary); }
+    .tab.active { background: var(--primary); color: white; box-shadow: 0 2px 8px rgba(99,102,241,0.3); }
+
+    .container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 28px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+      border: 1px solid var(--border);
+      transition: box-shadow 0.2s;
+    }
+
+    .card:hover { box-shadow: var(--shadow-md); }
+
+    .card h2 {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 18px;
+      color: var(--text);
+      letter-spacing: -0.3px;
+    }
+
+    .upload-area {
+      border: 2px dashed #d1d5db;
+      border-radius: var(--radius);
+      padding: 56px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: linear-gradient(135deg, #faf5ff 0%, #f0f4ff 100%);
+    }
+
+    .upload-area:hover { border-color: var(--primary); background: linear-gradient(135deg, #ede9fe 0%, #e0e7ff 100%); transform: translateY(-1px); }
+
+    .upload-area p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-top: 8px;
+    }
+
+    .upload-icon {
+      font-size: 48px;
+      color: var(--primary);
+      margin-bottom: 8px;
+    }
+
+    .btn {
+      padding: 10px 18px;
+      border: none;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary {
+      background: var(--gradient);
+      color: white;
+      box-shadow: 0 2px 8px rgba(99,102,241,0.25);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.35); }
+
+    .btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+    .btn-danger:hover { opacity: 0.9; }
+    .btn-del-import {
+      background: none; border: none; cursor: pointer; font-size: 14px; opacity: 0.3;
+      padding: 4px 8px; border-radius: 4px; transition: all 0.2s;
+    }
+    .btn-del-import:hover { opacity: 1; background: #fee2e2; }
+
+    .btn-outline {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-outline:hover { background: var(--bg); border-color: #d1d5db; }
+
+    .btn-sm { padding: 5px 14px; font-size: 12px; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th, td {
+      padding: 12px 14px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+
+    th {
+      font-weight: 700;
+      color: var(--text-secondary);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      background: #f9fafb;
+    }
+
+    th:first-child { border-radius: 8px 0 0 0; }
+    th:last-child { border-radius: 0 8px 0 0; }
+
+    tr { transition: background 0.15s; }
+    tr:hover { background: var(--primary-light); }
+
+    .amount { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .amount-negative { color: var(--danger); }
+
+    .label-tag {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .label-tag:hover { transform: scale(1.05); }
+
+    .label-select {
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      background: white;
+      min-width: 140px;
+    }
+
+    .filter-bar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
+    }
+
+    .filter-bar select, .filter-bar input {
+      padding: 9px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 13px;
+      background: white;
+      color: var(--text);
+      transition: border-color 0.2s;
+    }
+
+    .filter-bar select:focus, .filter-bar input:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    .summary-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      text-align: center;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .summary-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md); }
+
+    .summary-card .value {
+      font-size: 30px;
+      font-weight: 800;
+      background: var(--gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .summary-card .label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      margin-top: 6px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .chart-container {
+      position: relative;
+      height: 400px;
+      margin-top: 16px;
+    }
+
+    .hidden { display: none !important; }
+
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+
+    .modal {
+      background: white;
+      border-radius: var(--radius);
+      padding: 28px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: var(--shadow-lg);
+    }
+
+    .modal h3 { margin-bottom: 16px; font-weight: 700; }
+
+    .modal input, .modal select {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+
+    .modal input:focus, .modal select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 8px;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-secondary);
+    }
+
+    .empty-state p { font-size: 16px; margin-top: 8px; }
+
+    .label-manage-list { max-height: 300px; overflow-y: auto; }
+    .label-manage-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: var(--gradient);
+      color: white;
+      padding: 14px 22px;
+      border-radius: 12px;
+      font-size: 14px;
+      font-weight: 600;
+      z-index: 2000;
+      box-shadow: 0 4px 16px rgba(99,102,241,0.3);
+      animation: toastIn 0.4s cubic-bezier(0.16,1,0.3,1);
+    }
+
+    @keyframes toastIn {
+      from { opacity: 0; transform: translateY(16px) scale(0.96); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .month-nav {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .month-nav button {
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-size: 16px;
+      transition: all 0.2s;
+    }
+
+    .month-nav button:hover { background: var(--primary-light); border-color: var(--primary); }
+    .month-nav span { font-weight: 700; font-size: 16px; min-width: 120px; text-align: center; }
+
+    .sortable { cursor: pointer; user-select: none; transition: color 0.2s; }
+    .sortable:hover { color: var(--primary); }
+
+    .table-wrapper { overflow-x: auto; }
+
+    @media (max-width: 768px) {
+      .container { padding: 12px; }
+      .card { padding: 18px; }
+      .summary-grid { grid-template-columns: 1fr 1fr; }
+      .upload-area { padding: 32px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>家計簿アプリ</h1>
+    <button class="btn" style="color:white;background:rgba(255,255,255,0.15);backdrop-filter:blur(4px);border:1px solid rgba(255,255,255,0.2)" onclick="exportData()">データエクスポート</button>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('upload')">CSVアップロード</button>
+    <button class="tab" onclick="switchTab('transactions')">明細一覧</button>
+    <button class="tab" onclick="switchTab('summary')">ラベル集計</button>
+    <button class="tab" onclick="switchTab('chart')">月次推移</button>
+  </div>
+
+  <div class="container">
+    <!-- Upload Tab -->
+    <div id="tab-upload">
+      <div class="card">
+        <h2>CSVファイルをアップロード</h2>
+        <div class="upload-area" onclick="document.getElementById('csvFile').click()" id="dropZone">
+          <div class="upload-icon">&#128194;</div>
+          <p><strong>クリックまたはドラッグ&ドロップ</strong>でCSVファイルを選択</p>
+          <p style="font-size:12px;margin-top:4px">カード明細のCSVに対応</p>
+        </div>
+        <input type="file" id="csvFile" accept=".csv" class="hidden" onchange="handleFileSelect(event)">
+      </div>
+
+      <div class="card" id="previewCard" style="display:none">
+        <h2>プレビュー</h2>
+        <div class="filter-bar">
+          <label>日付列: <select id="colDate"></select></label>
+          <label>内容列: <select id="colDesc"></select></label>
+          <label>金額列: <select id="colAmount"></select></label>
+          <label>会員名列: <select id="colMember"><option value="">なし</option></select></label>
+        </div>
+        <div class="table-wrapper">
+          <table id="previewTable"></table>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-outline" onclick="cancelPreview()">キャンセル</button>
+          <button class="btn btn-primary" onclick="importCSV()">取り込む</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h2 style="margin-bottom:0">取り込み履歴</h2>
+          <button class="btn btn-sm" style="color:var(--danger);background:none;border:1px solid var(--danger)" onclick="clearAllData()">全データ削除</button>
+        </div>
+        <div id="importHistory"></div>
+      </div>
+    </div>
+
+    <!-- Transactions Tab -->
+    <div id="tab-transactions" class="hidden">
+      <div class="summary-grid" id="txSummary"></div>
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px">
+          <h2 style="margin-bottom:0">明細一覧</h2>
+          <div class="filter-bar" style="margin-bottom:0">
+            <select id="filterMonth" onchange="renderTransactions()">
+              <option value="">全期間</option>
+            </select>
+            <select id="filterMember" onchange="renderTransactions()">
+              <option value="">全会員</option>
+            </select>
+            <select id="filterLabel" onchange="renderTransactions()">
+              <option value="">全ラベル</option>
+            </select>
+            <select id="sortOrder" onchange="renderTransactions()">
+              <option value="amount-desc">金額 高い順</option>
+              <option value="amount-asc">金額 低い順</option>
+              <option value="date-desc">日付 新しい順</option>
+              <option value="date-asc">日付 古い順</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th class="sortable" onclick="toggleSort('date')">日付 <span id="sortIcon-date"></span></th>
+                <th>内容</th>
+                <th class="amount sortable" onclick="toggleSort('amount')">金額 <span id="sortIcon-amount"></span></th>
+                <th>ラベル</th>
+                <th style="width:40px"></th>
+              </tr>
+            </thead>
+            <tbody id="txBody"></tbody>
+          </table>
+        </div>
+        <div id="txEmpty" class="empty-state hidden">
+          <p>明細がありません。CSVをアップロードしてください。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary Tab -->
+    <div id="tab-summary" class="hidden">
+      <div class="filter-bar">
+        <select id="summaryMonth" onchange="renderSummary()">
+          <option value="">全期間</option>
+        </select>
+        <select id="summaryMember" onchange="renderSummary()" style="display:none">
+          <option value="">全会員</option>
+        </select>
+        <button class="btn btn-outline btn-sm" onclick="showLabelManager()">ラベル管理</button>
+      </div>
+      <div class="summary-grid" id="labelSummaryCards"></div>
+      <div class="card">
+        <h2>ラベル別内訳</h2>
+        <div class="chart-container">
+          <canvas id="pieChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <h2>ラベル別集計テーブル</h2>
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>ラベル</th>
+                <th class="amount">合計金額</th>
+                <th class="amount">件数</th>
+                <th class="amount">割合</th>
+              </tr>
+            </thead>
+            <tbody id="summaryBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart Tab -->
+    <div id="tab-chart" class="hidden">
+      <div class="card">
+        <h2>月次推移グラフ</h2>
+        <div class="filter-bar">
+          <select id="chartMember" onchange="renderChart()" style="display:none">
+            <option value="">全会員</option>
+          </select>
+          <select id="chartType" onchange="renderChart()">
+            <option value="bar">棒グラフ（積み上げ）</option>
+            <option value="line">折れ線グラフ</option>
+          </select>
+        </div>
+        <div class="chart-container">
+          <canvas id="monthlyChart"></canvas>
+        </div>
+      </div>
+      <div class="card">
+        <h2>月次合計推移</h2>
+        <div class="chart-container" style="height:300px">
+          <canvas id="totalChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Label Edit Modal -->
+  <div id="labelModal" class="modal-overlay hidden" onclick="if(event.target===this)closeLabelModal()">
+    <div class="modal">
+      <h3>ラベルを編集</h3>
+      <p id="labelModalDesc" style="color:var(--text-secondary);font-size:14px;margin-bottom:12px"></p>
+      <select id="labelModalSelect"></select>
+      <input type="text" id="labelModalCustom" placeholder="新しいラベルを入力..." style="display:none">
+      <label style="font-size:13px;color:var(--text-secondary);display:flex;align-items:center;gap:6px">
+        <input type="checkbox" id="labelModalApplyAll">
+        同じ内容の明細にも適用する
+      </label>
+      <div class="modal-actions">
+        <button class="btn btn-outline" onclick="closeLabelModal()">キャンセル</button>
+        <button class="btn btn-primary" onclick="saveLabelEdit()">保存</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Label Manager Modal -->
+  <div id="labelManagerModal" class="modal-overlay hidden" onclick="if(event.target===this)closeLabelManager()">
+    <div class="modal">
+      <h3>ラベル管理</h3>
+      <div style="display:flex;gap:8px;margin-bottom:16px">
+        <input type="text" id="newLabelInput" placeholder="新しいラベル名..." style="margin-bottom:0;flex:1">
+        <button class="btn btn-primary" onclick="addNewLabel()">追加</button>
+      </div>
+      <div class="label-manage-list" id="labelManagerList"></div>
+      <h3 style="margin-top:20px">学習済みルール</h3>
+      <p style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">ラベル編集時に自動で学習した単語の関連付けです</p>
+      <div class="label-manage-list" id="learnedRulesList"></div>
+      <div class="modal-actions" style="gap:8px">
+        <button class="btn btn-outline" style="color:var(--danger);border-color:var(--danger)" onclick="if(confirm('学習データをリセットしますか？'))resetLearnedRules()">学習リセット</button>
+        <button class="btn btn-outline" onclick="closeLabelManager()">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== State =====
+    let transactions = JSON.parse(localStorage.getItem('kakeibo_transactions') || '[]');
+    let labels = JSON.parse(localStorage.getItem('kakeibo_labels') || '[]');
+    let labelRules = JSON.parse(localStorage.getItem('kakeibo_rules') || '{}');
+    let importLogs = JSON.parse(localStorage.getItem('kakeibo_imports') || '[]');
+    let csvRawData = null;
+    let csvHeaders = [];
+    let csvFileName = '';
+    let editingTxId = null;
+    let pieChartInstance = null;
+    let monthlyChartInstance = null;
+    let totalChartInstance = null;
+
+    const DEFAULT_LABELS = [
+      '食費', '日用品', '交通費', '通信費', '水道光熱費',
+      '住居費', '保険', '医療費', '衣服', '美容',
+      '趣味・娯楽', '教育', '交際費', 'サブスク', 'ペット', 'その他'
+    ];
+
+    const LABEL_ICONS = {
+      '食費': '🍽️', '日用品': '🧴', '交通費': '🚃', '通信費': '📱', '水道光熱費': '💡',
+      '住居費': '🏠', '保険': '🛡️', '医療費': '🏥', '衣服': '👕', '美容': '💇',
+      '趣味・娯楽': '🎮', '教育': '📚', '交際費': '🍻', 'サブスク': '🔄',
+      'ペット': '🐾', 'その他': '📦'
+    };
+
+    function labelWithIcon(label) {
+      const icon = LABEL_ICONS[label] || '🏷️';
+      return icon + ' ' + label;
+    }
+
+    const LABEL_COLORS = [
+      '#818cf8', '#67e8f9', '#6ee7b7', '#fcd34d', '#fdba74',
+      '#fda4af', '#f0abfc', '#a78bfa', '#5eead4', '#a1a1aa',
+      '#c084fc', '#7dd3fc', '#bef264', '#fb7185', '#d4d4d8',
+      '#93c5fd', '#99f6e4', '#fde68a', '#fed7aa', '#c4b5fd'
+    ];
+
+    // Auto-labeling keyword map
+    const AUTO_LABEL_KEYWORDS = {
+      '食費': ['スーパー', 'マーケット', 'コンビニ', 'セブン', 'ファミリーマート', 'ローソン', 'レストラン', '食堂', '弁当', 'マクドナルド', 'すき家', '吉野家', '松屋', 'ガスト', 'サイゼリヤ', 'ココイチ', 'CoCo', 'ピザ', '寿司', 'ラーメン', 'うどん', 'そば', 'カフェ', 'スタバ', 'STARBUCKS', 'ドトール', 'タリーズ', 'コメダ', 'マック', 'モス', 'ケンタ', 'KFC', 'イオン', 'イトーヨーカドー', 'ライフ', 'まいばすけっと', '成城石井', 'デリバリー', 'UBER EATS', '出前'],
+      '日用品': ['ドラッグ', '薬局', 'マツモトキヨシ', 'ウエルシア', 'ツルハ', 'サンドラッグ', 'ダイソー', 'セリア', '100均', 'ホームセンター', 'カインズ', 'ニトリ', 'MUJI', '無印', 'ドンキ', 'ハンズ', 'LOFT'],
+      '交通費': ['JR', '鉄道', '電車', 'メトロ', '地下鉄', 'バス', 'タクシー', 'SUICA', 'PASMO', 'ETC', '高速', '駐車', 'ガソリン', '燃料', 'ENEOS', 'シェル', '出光', 'コスモ'],
+      '通信費': ['ドコモ', 'DOCOMO', 'AU', 'KDDI', 'ソフトバンク', 'SOFTBANK', '楽天モバイル', 'NTT', 'インターネット', 'WiFi', 'プロバイダ'],
+      '水道光熱費': ['電気', '東京電力', '関西電力', 'ガス', '東京ガス', '水道', '上下水道'],
+      '住居費': ['家賃', '管理費', '共益費', '住宅', 'マンション', '不動産'],
+      '保険': ['保険', '生命保険', '損害保険', '火災保険', '自動車保険'],
+      '医療費': ['病院', 'クリニック', '医院', '薬局', '調剤', '歯科', '歯医者', '眼科', '皮膚科'],
+      '衣服': ['ユニクロ', 'UNIQLO', 'GU', 'ZARA', 'H&M', 'しまむら', 'アパレル', '衣料'],
+      '美容': ['美容院', '理容', 'ヘアサロン', 'エステ', 'ネイル', '化粧品'],
+      '趣味・娯楽': ['映画', 'シネマ', 'ゲーム', '書店', '本屋', 'Amazon', 'アマゾン', 'ヨドバシ', 'ビックカメラ', 'ヤマダ電機', 'カラオケ', 'ボウリング', 'ジム', 'フィットネス', 'スポーツ'],
+      '教育': ['書籍', '参考書', 'Udemy', 'スクール', '塾', '教材', '学費'],
+      '交際費': ['贈答', 'プレゼント', '花屋', 'ご祝儀', '香典', '飲み会', '宴会', '居酒屋'],
+      'サブスク': ['Netflix', 'NETFLIX', 'Spotify', 'Apple', 'APPLE', 'Google', 'YouTube', 'Disney', 'Hulu', 'Amazonプライム', 'PRIME', 'Adobe', 'Microsoft']
+    };
+
+    // Initialize
+    if (labels.length === 0) {
+      labels = [...DEFAULT_LABELS];
+      saveLabels();
+    }
+
+    // ===== Persistence =====
+    function saveTransactions() {
+      localStorage.setItem('kakeibo_transactions', JSON.stringify(transactions));
+    }
+    function saveLabels() {
+      localStorage.setItem('kakeibo_labels', JSON.stringify(labels));
+    }
+    function saveRules() {
+      localStorage.setItem('kakeibo_rules', JSON.stringify(labelRules));
+    }
+    function saveImports() {
+      localStorage.setItem('kakeibo_imports', JSON.stringify(importLogs));
+    }
+
+    // ===== Tab Navigation =====
+    function switchTab(tab) {
+      document.querySelectorAll('.tab').forEach((t, i) => {
+        t.classList.toggle('active', t.textContent.includes(
+          tab === 'upload' ? 'CSV' : tab === 'transactions' ? '明細' : tab === 'summary' ? '集計' : '月次'
+        ));
+      });
+      ['upload', 'transactions', 'summary', 'chart'].forEach(t => {
+        document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+      });
+      if (tab === 'transactions') renderTransactions();
+      if (tab === 'summary') renderSummary();
+      if (tab === 'chart') renderChart();
+    }
+
+    // ===== CSV Upload =====
+    const dropZone = document.getElementById('dropZone');
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.borderColor = 'var(--primary)'; dropZone.style.background = '#f0f0ff'; });
+    dropZone.addEventListener('dragleave', () => { dropZone.style.borderColor = ''; dropZone.style.background = ''; });
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.style.borderColor = ''; dropZone.style.background = '';
+      if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+    });
+
+    function handleFileSelect(e) {
+      if (e.target.files.length) handleFile(e.target.files[0]);
+    }
+
+    function handleFile(file) {
+      if (!file.name.endsWith('.csv')) {
+        showToast('CSVファイルを選択してください');
+        return;
+      }
+      csvFileName = file.name;
+      // Read as ArrayBuffer to detect encoding
+      const reader = new FileReader();
+      reader.onload = e => {
+        const bytes = new Uint8Array(e.target.result);
+        // Detect if UTF-8 (look for valid UTF-8 multibyte sequences or BOM)
+        const isUtf8 = detectUtf8(bytes);
+        const encoding = isUtf8 ? 'UTF-8' : 'Shift_JIS';
+        const textReader = new FileReader();
+        textReader.onload = ev => parseCSV(ev.target.result);
+        textReader.readAsText(file, encoding);
+      };
+      reader.readAsArrayBuffer(file);
+    }
+
+    function detectUtf8(bytes) {
+      // UTF-8 BOM
+      if (bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) return true;
+      // Check for valid UTF-8 multibyte sequences
+      let i = 0;
+      let multibyte = 0;
+      while (i < Math.min(bytes.length, 4096)) {
+        const b = bytes[i];
+        if (b >= 0x80) {
+          if ((b & 0xE0) === 0xC0) { if (i+1 < bytes.length && (bytes[i+1] & 0xC0) === 0x80) { multibyte++; i += 2; continue; } return false; }
+          if ((b & 0xF0) === 0xE0) { if (i+2 < bytes.length && (bytes[i+1] & 0xC0) === 0x80 && (bytes[i+2] & 0xC0) === 0x80) { multibyte++; i += 3; continue; } return false; }
+          if ((b & 0xF8) === 0xF0) { if (i+3 < bytes.length && (bytes[i+1] & 0xC0) === 0x80 && (bytes[i+2] & 0xC0) === 0x80 && (bytes[i+3] & 0xC0) === 0x80) { multibyte++; i += 4; continue; } return false; }
+          return false; // Invalid UTF-8 start byte → likely Shift_JIS
+        }
+        i++;
+      }
+      return multibyte > 0; // Has valid multibyte sequences
+    }
+
+    function parseCSV(text) {
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) { showToast('CSVの内容が空です'); return; }
+
+      // Detect delimiter
+      const delimiter = lines[0].includes('\t') ? '\t' : ',';
+
+      csvHeaders = parseCSVLine(lines[0], delimiter);
+      csvRawData = lines.slice(1).map(l => {
+        const row = parseCSVLine(l, delimiter);
+        // Pad short rows with empty strings, trim extra columns
+        while (row.length < csvHeaders.length) row.push('');
+        return row.slice(0, csvHeaders.length);
+      }).filter(r => r.some(c => c !== ''));
+
+      // Populate column selectors
+      ['colDate', 'colDesc', 'colAmount'].forEach(id => {
+        const sel = document.getElementById(id);
+        sel.innerHTML = csvHeaders.map((h, i) => `<option value="${i}">${h}</option>`).join('');
+      });
+      // Member column has "なし" option
+      const memberSel = document.getElementById('colMember');
+      memberSel.innerHTML = '<option value="">なし</option>' + csvHeaders.map((h, i) => `<option value="${i}">${h}</option>`).join('');
+
+      // Auto-detect columns (first match wins for each category)
+      let foundDate = false, foundDesc = false, foundAmount = false, foundMember = false;
+      csvHeaders.forEach((h, i) => {
+        if (!foundDate && (/利用日|ご利用日/.test(h) || (!foundDate && /日付|date|年月/i.test(h)))) {
+          document.getElementById('colDate').value = i; foundDate = true;
+        }
+        if (!foundDesc && (/利用内容|ご利用内容/.test(h) || (!foundDesc && /内容|摘要|利用先|利用店|description/i.test(h)))) {
+          document.getElementById('colDesc').value = i; foundDesc = true;
+        }
+        if (!foundAmount && h === '金額') {
+          document.getElementById('colAmount').value = i; foundAmount = true;
+        }
+        if (!foundMember && /会員|カード.*名|利用者|member/i.test(h)) {
+          memberSel.value = i; foundMember = true;
+        }
+      });
+      // Fallback: broader matching if exact match didn't find
+      if (!foundAmount) {
+        csvHeaders.forEach((h, i) => {
+          if (!foundAmount && /金額|amount|支払/i.test(h) && !/海外/.test(h)) {
+            document.getElementById('colAmount').value = i; foundAmount = true;
+          }
+        });
+      }
+
+      // Show preview
+      document.getElementById('previewCard').style.display = '';
+      const table = document.getElementById('previewTable');
+      let html = '<thead><tr>' + csvHeaders.map(h => `<th>${escapeHtml(h)}</th>`).join('') + '</tr></thead><tbody>';
+      csvRawData.slice(0, 10).forEach(row => {
+        html += '<tr>' + row.map(c => `<td>${escapeHtml(c)}</td>`).join('') + '</tr>';
+      });
+      if (csvRawData.length > 10) html += `<tr><td colspan="${csvHeaders.length}" style="text-align:center;color:var(--text-secondary)">...他 ${csvRawData.length - 10} 件</td></tr>`;
+      html += '</tbody>';
+      table.innerHTML = html;
+    }
+
+    function parseCSVLine(line, delimiter) {
+      const result = [];
+      let current = '';
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i++) {
+        const ch = line[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (i + 1 < line.length && line[i + 1] === '"') {
+              current += '"'; i++;
+            } else {
+              inQuotes = false;
+            }
+          } else {
+            current += ch;
+          }
+        } else {
+          if (ch === '"') {
+            inQuotes = true;
+          } else if (ch === delimiter) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += ch;
+          }
+        }
+      }
+      result.push(current.trim());
+      return result;
+    }
+
+    function parseAmount(str) {
+      if (!str) return NaN;
+      // Full-width to half-width
+      let s = str.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+      // Remove currency symbols, spaces, "円"
+      s = s.replace(/[,，¥￥\s円]/g, '');
+      // Handle △ or ▲ as negative
+      s = s.replace(/[△▲]/g, '-');
+      // Handle parentheses as negative: (1000) -> -1000
+      if (/^\(.*\)$/.test(s)) s = '-' + s.replace(/[()]/g, '');
+      const num = parseFloat(s);
+      return isNaN(num) ? NaN : Math.round(num);
+    }
+
+    function importCSV() {
+      const dateIdx = parseInt(document.getElementById('colDate').value);
+      const descIdx = parseInt(document.getElementById('colDesc').value);
+      const amountIdx = parseInt(document.getElementById('colAmount').value);
+      const memberVal = document.getElementById('colMember').value;
+      const memberIdx = memberVal !== '' ? parseInt(memberVal) : -1;
+
+      let imported = 0;
+      let skippedNegative = 0;
+      const importTimestamp = new Date().toISOString();
+      csvRawData.forEach((row, ri) => {
+        const dateStr = row[dateIdx] || '';
+        const desc = row[descIdx] || '';
+        const amount = parseAmount(row[amountIdx]);
+        if (!desc || isNaN(amount) || amount === 0) return;
+
+        // Skip negative amounts (payments, refunds, credits)
+        if (amount < 0) {
+          skippedNegative++;
+          return;
+        }
+
+        // Normalize date
+        const date = normalizeDate(dateStr);
+
+        const member = memberIdx >= 0 ? (row[memberIdx] || '').trim() : '';
+
+        const tx = {
+          id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+          date,
+          description: desc,
+          amount,
+          member,
+          label: autoLabel(desc),
+          importedAt: importTimestamp
+        };
+        transactions.push(tx);
+        imported++;
+      });
+
+      if (imported === 0) {
+        showToast('取り込めるデータがありませんでした');
+        return;
+      }
+
+      saveTransactions();
+      importLogs.push({ date: importTimestamp, count: imported, skippedNegative, fileName: csvFileName });
+      saveImports();
+
+      csvRawData = null;
+      document.getElementById('previewCard').style.display = 'none';
+      document.getElementById('csvFile').value = '';
+      renderImportHistory();
+      const msg = `${imported}件の明細を取り込みました` + (skippedNegative > 0 ? `（${skippedNegative}件のマイナス明細を除外）` : '');
+      showToast(msg);
+    }
+
+    function cancelPreview() {
+      csvRawData = null;
+      document.getElementById('previewCard').style.display = 'none';
+      document.getElementById('csvFile').value = '';
+    }
+
+    function normalizeDate(str) {
+      // Handle various date formats
+      let m;
+      if (m = str.match(/(\d{4})[\/\-年](\d{1,2})[\/\-月](\d{1,2})/)) {
+        return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+      }
+      if (m = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/)) {
+        return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}`;
+      }
+      return str;
+    }
+
+    // ===== Auto Labeling =====
+    // Extract meaningful tokens from a description
+    function tokenize(desc) {
+      // Remove common noise words and split into tokens
+      return desc
+        .replace(/[（()）\-\s　\/／・]+/g, ' ')
+        .split(' ')
+        .map(t => t.trim())
+        .filter(t => t.length >= 2);
+    }
+
+    // Learn from a label assignment: associate tokens with label
+    function learnFromLabel(description, label) {
+      const tokens = tokenize(description);
+      let wordScores = JSON.parse(localStorage.getItem('kakeibo_word_scores') || '{}');
+      tokens.forEach(token => {
+        const key = token.toUpperCase();
+        if (!wordScores[key]) wordScores[key] = {};
+        wordScores[key][label] = (wordScores[key][label] || 0) + 1;
+      });
+      localStorage.setItem('kakeibo_word_scores', JSON.stringify(wordScores));
+    }
+
+    function autoLabel(description) {
+      const desc = description.toUpperCase();
+
+      // 1. Check user-defined rules first (exact description match)
+      for (const [keyword, label] of Object.entries(labelRules)) {
+        if (desc.includes(keyword.toUpperCase())) return label;
+      }
+
+      // 2. Check default keyword map
+      for (const [label, keywords] of Object.entries(AUTO_LABEL_KEYWORDS)) {
+        for (const kw of keywords) {
+          if (desc.includes(kw.toUpperCase())) return label;
+        }
+      }
+
+      // 3. Score-based prediction from learned word associations
+      const wordScores = JSON.parse(localStorage.getItem('kakeibo_word_scores') || '{}');
+      const tokens = tokenize(description);
+      const labelScores = {};
+      tokens.forEach(token => {
+        const key = token.toUpperCase();
+        if (wordScores[key]) {
+          for (const [label, score] of Object.entries(wordScores[key])) {
+            labelScores[label] = (labelScores[label] || 0) + score;
+          }
+        }
+      });
+
+      // Return the label with highest score, if any
+      const best = Object.entries(labelScores).sort((a, b) => b[1] - a[1])[0];
+      if (best && best[1] >= 1) return best[0];
+
+      return 'その他';
+    }
+
+    // ===== Transactions List =====
+    function toggleSort(field) {
+      const sel = document.getElementById('sortOrder');
+      const current = sel.value;
+      if (field === 'date') {
+        sel.value = current === 'date-asc' ? 'date-desc' : 'date-asc';
+      } else if (field === 'amount') {
+        sel.value = current === 'amount-desc' ? 'amount-asc' : 'amount-desc';
+      }
+      renderTransactions();
+    }
+
+    function updateSortIcons() {
+      const sort = document.getElementById('sortOrder').value;
+      const dateIcon = document.getElementById('sortIcon-date');
+      const amountIcon = document.getElementById('sortIcon-amount');
+      dateIcon.textContent = sort === 'date-asc' ? '\u25B2' : sort === 'date-desc' ? '\u25BC' : '';
+      amountIcon.textContent = sort === 'amount-desc' ? '\u25BC' : sort === 'amount-asc' ? '\u25B2' : '';
+    }
+
+    function renderTransactions() {
+      const monthFilter = document.getElementById('filterMonth').value;
+      const labelFilter = document.getElementById('filterLabel').value;
+      const memberFilter = document.getElementById('filterMember').value;
+      const sort = document.getElementById('sortOrder').value;
+
+      updateFilterOptions();
+      updateSortIcons();
+
+      let filtered = transactions.filter(tx => {
+        if (monthFilter && !tx.date.startsWith(monthFilter)) return false;
+        if (labelFilter && tx.label !== labelFilter) return false;
+        if (memberFilter && tx.member !== memberFilter) return false;
+        return true;
+      });
+
+      // Sort
+      filtered.sort((a, b) => {
+        switch (sort) {
+          case 'amount-desc': return b.amount - a.amount;
+          case 'amount-asc': return a.amount - b.amount;
+          case 'date-desc': return b.date.localeCompare(a.date);
+          case 'date-asc': return a.date.localeCompare(b.date);
+        }
+      });
+
+      const totalAmount = filtered.reduce((s, t) => s + t.amount, 0);
+      document.getElementById('txSummary').innerHTML = `
+        <div class="summary-card"><div class="value">${filtered.length}</div><div class="label">件数</div></div>
+        <div class="summary-card"><div class="value">&yen;${totalAmount.toLocaleString()}</div><div class="label">合計金額</div></div>
+        <div class="summary-card"><div class="value">&yen;${filtered.length ? Math.round(totalAmount / filtered.length).toLocaleString() : 0}</div><div class="label">平均金額</div></div>
+      `;
+
+      const tbody = document.getElementById('txBody');
+      const empty = document.getElementById('txEmpty');
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '';
+        empty.classList.remove('hidden');
+        return;
+      }
+      empty.classList.add('hidden');
+
+      tbody.innerHTML = filtered.map(tx => `
+        <tr>
+          <td style="white-space:nowrap">${escapeHtml(tx.date)}</td>
+          <td>${escapeHtml(tx.description)}</td>
+          <td class="amount">&yen;${tx.amount.toLocaleString()}</td>
+          <td>
+            <span class="label-tag" style="background:${getLabelColor(tx.label)}20;color:${getLabelColor(tx.label)}"
+                  onclick="openLabelEdit('${tx.id}')">
+              ${labelWithIcon(tx.label)} &#9998;
+            </span>
+          </td>
+          <td><button class="btn btn-sm" style="color:var(--text-secondary);background:none;border:none;opacity:0.4;font-size:14px" onmouseover="this.style.opacity='1';this.style.color='var(--danger)'" onmouseout="this.style.opacity='0.4';this.style.color='var(--text-secondary)'" onclick="deleteTx('${tx.id}')" title="削除">✕</button></td>
+        </tr>
+      `).join('');
+    }
+
+    function deleteTx(txId) {
+      if (!confirm('この明細を削除しますか？')) return;
+      transactions = transactions.filter(t => t.id !== txId);
+      saveTransactions();
+      renderTransactions();
+      showToast('明細を削除しました');
+    }
+
+    function updateFilterOptions() {
+      const months = [...new Set(transactions.map(tx => tx.date.slice(0, 7)))].sort().reverse();
+      const currentMonth = document.getElementById('filterMonth').value;
+      const monthSel = document.getElementById('filterMonth');
+      monthSel.innerHTML = '<option value="">全期間</option>' + months.map(m => `<option value="${m}" ${m===currentMonth?'selected':''}>${m}</option>`).join('');
+
+      const currentLabel = document.getElementById('filterLabel').value;
+      const usedLabels = [...new Set(transactions.map(tx => tx.label))].sort();
+      const labelSel = document.getElementById('filterLabel');
+      labelSel.innerHTML = '<option value="">全ラベル</option>' + usedLabels.map(l => `<option value="${l}" ${l===currentLabel?'selected':''}>${labelWithIcon(l)}</option>`).join('');
+
+      // Member filters (all tabs)
+      const members = [...new Set(transactions.map(tx => tx.member).filter(m => m))].sort();
+      ['filterMember', 'summaryMember', 'chartMember'].forEach(id => {
+        const sel = document.getElementById(id);
+        const current = sel.value;
+        if (members.length > 0) {
+          sel.innerHTML = '<option value="">全会員</option>' + members.map(m => `<option value="${m}" ${m===current?'selected':''}>${escapeHtml(m)}</option>`).join('');
+          sel.style.display = '';
+        } else {
+          sel.style.display = 'none';
+        }
+      });
+
+      // Summary month filter
+      const summaryMonth = document.getElementById('summaryMonth');
+      const currentSummaryMonth = summaryMonth.value;
+      summaryMonth.innerHTML = '<option value="">全期間</option>' + months.map(m => `<option value="${m}" ${m===currentSummaryMonth?'selected':''}>${m}</option>`).join('');
+    }
+
+    // ===== Label Edit =====
+    function openLabelEdit(txId) {
+      editingTxId = txId;
+      const tx = transactions.find(t => t.id === txId);
+      if (!tx) return;
+
+      document.getElementById('labelModalDesc').textContent = `${tx.description} (¥${tx.amount.toLocaleString()})`;
+      const sel = document.getElementById('labelModalSelect');
+      sel.innerHTML = labels.map(l => `<option value="${l}" ${l===tx.label?'selected':''}>${labelWithIcon(l)}</option>`).join('') +
+        '<option value="__custom__">+ 新しいラベル</option>';
+      sel.onchange = () => {
+        document.getElementById('labelModalCustom').style.display = sel.value === '__custom__' ? '' : 'none';
+      };
+      document.getElementById('labelModalCustom').style.display = 'none';
+      document.getElementById('labelModalCustom').value = '';
+      document.getElementById('labelModalApplyAll').checked = false;
+      document.getElementById('labelModal').classList.remove('hidden');
+    }
+
+    function closeLabelModal() {
+      document.getElementById('labelModal').classList.add('hidden');
+      editingTxId = null;
+    }
+
+    function saveLabelEdit() {
+      const tx = transactions.find(t => t.id === editingTxId);
+      if (!tx) return;
+
+      const sel = document.getElementById('labelModalSelect');
+      let newLabel = sel.value;
+      if (newLabel === '__custom__') {
+        newLabel = document.getElementById('labelModalCustom').value.trim();
+        if (!newLabel) { showToast('ラベル名を入力してください'); return; }
+        if (!labels.includes(newLabel)) {
+          labels.push(newLabel);
+          saveLabels();
+        }
+      }
+
+      const applyAll = document.getElementById('labelModalApplyAll').checked;
+
+      // Always learn from label assignment
+      learnFromLabel(tx.description, newLabel);
+
+      if (applyAll) {
+        // Save as rule and apply to all matching
+        labelRules[tx.description] = newLabel;
+        saveRules();
+        transactions.forEach(t => {
+          if (t.description === tx.description) t.label = newLabel;
+        });
+      } else {
+        tx.label = newLabel;
+      }
+
+      saveTransactions();
+      closeLabelModal();
+      renderTransactions();
+      showToast('ラベルを更新しました（学習済み）');
+    }
+
+    // ===== Label Manager =====
+    function showLabelManager() {
+      const list = document.getElementById('labelManagerList');
+      list.innerHTML = labels.map(l => {
+        const count = transactions.filter(t => t.label === l).length;
+        return `<div class="label-manage-item">
+          <span><span class="label-tag" style="background:${getLabelColor(l)}20;color:${getLabelColor(l)}">${labelWithIcon(l)}</span> (${count}件)</span>
+          ${count === 0 ? `<button class="btn btn-danger btn-sm" onclick="deleteLabel('${escapeHtml(l)}')">削除</button>` : ''}
+        </div>`;
+      }).join('');
+
+      // Show learned word associations
+      const wordScores = JSON.parse(localStorage.getItem('kakeibo_word_scores') || '{}');
+      const rulesEl = document.getElementById('learnedRulesList');
+      const entries = Object.entries(wordScores);
+      if (entries.length === 0) {
+        rulesEl.innerHTML = '<p style="color:var(--text-secondary);font-size:13px">まだ学習データはありません。明細のラベルを編集すると自動で学習します。</p>';
+      } else {
+        // Group by best label
+        const byLabel = {};
+        entries.forEach(([word, scores]) => {
+          const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+          if (!byLabel[best[0]]) byLabel[best[0]] = [];
+          byLabel[best[0]].push({ word, score: best[1] });
+        });
+        rulesEl.innerHTML = Object.entries(byLabel).map(([label, words]) => {
+          const wordList = words.sort((a, b) => b.score - a.score).map(w => escapeHtml(w.word)).join('、');
+          return `<div class="label-manage-item" style="flex-direction:column;align-items:flex-start;gap:4px">
+            <span class="label-tag" style="background:${getLabelColor(label)}20;color:${getLabelColor(label)}">${labelWithIcon(label)}</span>
+            <span style="font-size:12px;color:var(--text-secondary)">${wordList}</span>
+          </div>`;
+        }).join('');
+      }
+
+      document.getElementById('labelManagerModal').classList.remove('hidden');
+    }
+
+    function resetLearnedRules() {
+      localStorage.removeItem('kakeibo_word_scores');
+      showLabelManager();
+      showToast('学習データをリセットしました');
+    }
+
+    function closeLabelManager() {
+      document.getElementById('labelManagerModal').classList.add('hidden');
+    }
+
+    function addNewLabel() {
+      const input = document.getElementById('newLabelInput');
+      const name = input.value.trim();
+      if (!name) return;
+      if (labels.includes(name)) { showToast('既に存在するラベルです'); return; }
+      labels.push(name);
+      saveLabels();
+      input.value = '';
+      showLabelManager();
+      showToast('ラベルを追加しました');
+    }
+
+    function deleteLabel(name) {
+      labels = labels.filter(l => l !== name);
+      saveLabels();
+      showLabelManager();
+    }
+
+    // ===== Summary =====
+    function renderSummary() {
+      const monthFilter = document.getElementById('summaryMonth').value;
+      const memberFilter = document.getElementById('summaryMember').value;
+      updateFilterOptions();
+      const filtered = transactions.filter(tx => {
+        if (monthFilter && !tx.date.startsWith(monthFilter)) return false;
+        if (memberFilter && tx.member !== memberFilter) return false;
+        return true;
+      });
+
+      // Group by label
+      const groups = {};
+      filtered.forEach(tx => {
+        if (!groups[tx.label]) groups[tx.label] = { total: 0, count: 0 };
+        groups[tx.label].total += tx.amount;
+        groups[tx.label].count++;
+      });
+
+      const totalAmount = filtered.reduce((s, t) => s + t.amount, 0);
+      const sorted = Object.entries(groups).sort((a, b) => b[1].total - a[1].total);
+
+      // Summary cards
+      document.getElementById('labelSummaryCards').innerHTML = `
+        <div class="summary-card"><div class="value">&yen;${totalAmount.toLocaleString()}</div><div class="label">合計支出</div></div>
+        <div class="summary-card"><div class="value">${filtered.length}</div><div class="label">総件数</div></div>
+        <div class="summary-card"><div class="value">${sorted.length}</div><div class="label">ラベル数</div></div>
+      `;
+
+      // Table
+      document.getElementById('summaryBody').innerHTML = sorted.map(([label, data]) => `
+        <tr>
+          <td><span class="label-tag" style="background:${getLabelColor(label)}20;color:${getLabelColor(label)}">${labelWithIcon(label)}</span></td>
+          <td class="amount">&yen;${data.total.toLocaleString()}</td>
+          <td class="amount">${data.count}</td>
+          <td class="amount">${totalAmount ? ((data.total / totalAmount) * 100).toFixed(1) : 0}%</td>
+        </tr>
+      `).join('');
+
+      // Pie chart
+      if (pieChartInstance) pieChartInstance.destroy();
+      pieChartInstance = new Chart(document.getElementById('pieChart'), {
+        type: 'doughnut',
+        data: {
+          labels: sorted.map(s => labelWithIcon(s[0])),
+          datasets: [{
+            data: sorted.map(s => s[1].total),
+            backgroundColor: sorted.map(s => getLabelColor(s[0])),
+            borderWidth: 2,
+            borderColor: '#ffffff',
+            hoverBorderWidth: 3,
+            hoverOffset: 8,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: '55%',
+          plugins: {
+            legend: {
+              position: 'right',
+              labels: {
+                font: { size: 13, weight: '500' },
+                padding: 14,
+                usePointStyle: true,
+                pointStyle: 'circle',
+              }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(17,24,39,0.9)',
+              titleFont: { size: 14, weight: '600' },
+              bodyFont: { size: 13 },
+              padding: 12,
+              cornerRadius: 10,
+              callbacks: {
+                label: ctx => ` ¥${ctx.parsed.toLocaleString()} (${totalAmount ? ((ctx.parsed / totalAmount) * 100).toFixed(1) : 0}%)`
+              }
+            }
+          }
+        }
+      });
+
+      updateFilterOptions();
+    }
+
+    // ===== Monthly Chart =====
+    function renderChart() {
+      const chartType = document.getElementById('chartType').value;
+      const memberFilter = document.getElementById('chartMember').value;
+      updateFilterOptions();
+      const txFiltered = transactions.filter(tx => !memberFilter || tx.member === memberFilter);
+      const months = [...new Set(txFiltered.map(tx => tx.date.slice(0, 7)))].sort();
+      const usedLabels = [...new Set(txFiltered.map(tx => tx.label))];
+
+      if (months.length === 0) return;
+
+      // Monthly data by label
+      const dataByLabel = {};
+      usedLabels.forEach(label => {
+        dataByLabel[label] = months.map(month => {
+          return txFiltered
+            .filter(tx => tx.date.startsWith(month) && tx.label === label)
+            .reduce((s, t) => s + t.amount, 0);
+        });
+      });
+
+      const datasets = [];
+      usedLabels.forEach(label => {
+        // Bar dataset
+        datasets.push({
+          type: chartType === 'bar' ? 'bar' : 'line',
+          label: labelWithIcon(label),
+          data: dataByLabel[label],
+          backgroundColor: getLabelColor(label) + (chartType === 'bar' ? '' : '30'),
+          borderColor: getLabelColor(label),
+          borderWidth: chartType === 'bar' ? 0 : 2.5,
+          borderRadius: chartType === 'bar' ? 4 : 0,
+          fill: chartType === 'bar',
+          tension: 0.4,
+          pointRadius: chartType === 'line' ? 3 : 0,
+          pointHoverRadius: 6,
+          stack: 'stack0',
+          order: 2,
+        });
+      });
+
+      const chartTooltipStyle = {
+        backgroundColor: 'rgba(17,24,39,0.9)',
+        titleFont: { size: 13, weight: '600' },
+        bodyFont: { size: 12 },
+        padding: 10,
+        cornerRadius: 8,
+      };
+
+      const chartScaleStyle = {
+        grid: { color: 'rgba(0,0,0,0.04)', drawBorder: false },
+        ticks: { font: { size: 11 }, color: '#9ca3af' },
+      };
+
+      // Plugin: draw ribbons connecting stacked bar segments between months
+      const ribbonPlugin = {
+        id: 'stackedRibbon',
+        afterDraw(chart) {
+          if (chart.config.type !== 'bar') return;
+          const ctx = chart.ctx;
+          const meta = chart.getDatasetMeta(0);
+          if (!meta || !meta.data || meta.data.length < 2) return;
+
+          const barSets = chart.data.datasets.length;
+          for (let di = 0; di < barSets; di++) {
+            const dsMeta = chart.getDatasetMeta(di);
+            if (!dsMeta.visible) continue;
+            const color = chart.data.datasets[di].backgroundColor;
+
+            for (let i = 0; i < dsMeta.data.length - 1; i++) {
+              const bar1 = dsMeta.data[i];
+              const bar2 = dsMeta.data[i + 1];
+              if (!bar1 || !bar2) continue;
+
+              const x1 = bar1.x + bar1.width / 2;
+              const x2 = bar2.x - bar2.width / 2;
+              const y1Top = bar1.y;
+              const y1Bottom = bar1.base;
+              const y2Top = bar2.y;
+              const y2Bottom = bar2.base;
+
+              ctx.save();
+              ctx.globalAlpha = 0.15;
+              ctx.fillStyle = color;
+              ctx.beginPath();
+              ctx.moveTo(x1, y1Top);
+              ctx.lineTo(x2, y2Top);
+              ctx.lineTo(x2, y2Bottom);
+              ctx.lineTo(x1, y1Bottom);
+              ctx.closePath();
+              ctx.fill();
+              ctx.restore();
+            }
+          }
+        }
+      };
+
+      if (monthlyChartInstance) monthlyChartInstance.destroy();
+      monthlyChartInstance = new Chart(document.getElementById('monthlyChart'), {
+        type: chartType === 'bar' ? 'bar' : 'line',
+        data: { labels: months, datasets },
+        plugins: chartType === 'bar' ? [ribbonPlugin] : [],
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: { ...chartScaleStyle, stacked: chartType === 'bar' },
+            y: {
+              ...chartScaleStyle,
+              stacked: chartType === 'bar',
+              ticks: { ...chartScaleStyle.ticks, callback: v => '¥' + v.toLocaleString() }
+            }
+          },
+          plugins: {
+            tooltip: {
+              ...chartTooltipStyle,
+              mode: 'nearest',
+              intersect: true,
+              callbacks: { label: ctx => `${ctx.dataset.label}: ¥${ctx.parsed.y.toLocaleString()}` }
+            },
+            legend: {
+              position: 'bottom',
+              labels: {
+                font: { size: 12, weight: '500' }, boxWidth: 14, padding: 16, usePointStyle: true, pointStyle: 'circle',
+              }
+            }
+          }
+        }
+      });
+
+      // Total monthly chart
+      const totalData = months.map(month =>
+        txFiltered.filter(tx => tx.date.startsWith(month)).reduce((s, t) => s + t.amount, 0)
+      );
+
+      if (totalChartInstance) totalChartInstance.destroy();
+      const ctx = document.getElementById('totalChart').getContext('2d');
+      const gradient = ctx.createLinearGradient(0, 0, 0, 300);
+      gradient.addColorStop(0, 'rgba(129,140,248,0.3)');
+      gradient.addColorStop(1, 'rgba(129,140,248,0.02)');
+
+      totalChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: months,
+          datasets: [{
+            label: '月次合計',
+            data: totalData,
+            backgroundColor: gradient,
+            borderColor: '#818cf8',
+            borderWidth: 2,
+            borderRadius: 6,
+            hoverBackgroundColor: 'rgba(129,140,248,0.5)',
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: chartScaleStyle,
+            y: { ...chartScaleStyle, ticks: { ...chartScaleStyle.ticks, callback: v => '¥' + v.toLocaleString() } }
+          },
+          plugins: {
+            tooltip: { ...chartTooltipStyle, callbacks: { label: ctx => `合計: ¥${ctx.parsed.y.toLocaleString()}` } },
+            legend: { display: false }
+          }
+        }
+      });
+    }
+
+    // ===== Import History =====
+    function renderImportHistory() {
+      const el = document.getElementById('importHistory');
+      if (importLogs.length === 0) {
+        el.innerHTML = '<p style="color:var(--text-secondary);font-size:14px">まだ取り込み履歴はありません</p>';
+        return;
+      }
+      el.innerHTML = '<table><thead><tr><th>日時</th><th>ファイル名</th><th>件数</th><th></th></tr></thead><tbody>' +
+        importLogs.slice().reverse().map((log, ri) => {
+          const idx = importLogs.length - 1 - ri;
+          return `<tr><td>${new Date(log.date).toLocaleString('ja-JP')}</td><td>${escapeHtml(log.fileName || '-')}</td><td>${log.count}件</td><td><button class="btn-del-import" onclick="deleteImport(${idx})" title="この取り込みを削除">🗑</button></td></tr>`;
+        }).join('') + '</tbody></table>';
+    }
+
+    // ===== Export =====
+    function exportData() {
+      const data = { transactions, labels, labelRules, importLogs, exportedAt: new Date().toISOString() };
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `kakeibo_backup_${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+    }
+
+    function deleteImport(idx) {
+      const log = importLogs[idx];
+      if (!log) return;
+      if (!confirm(`${escapeHtml(log.fileName || '不明')}（${log.count}件）の取り込みを削除しますか？\n該当する明細も削除されます。`)) return;
+      // Remove transactions that were imported at the same time
+      const importDate = log.date;
+      transactions = transactions.filter(t => t.importedAt !== importDate);
+      importLogs.splice(idx, 1);
+      saveTransactions();
+      saveImports();
+      renderAll();
+      showToast('取り込みデータを削除しました');
+    }
+
+    function clearAllData() {
+      if (!confirm('全ての明細データと取り込み履歴を削除しますか？\n（ラベル設定・学習データは保持されます）')) return;
+      if (!confirm('本当に削除しますか？この操作は取り消せません。')) return;
+      transactions = [];
+      importLogs = [];
+      saveTransactions();
+      saveImports();
+      renderImportHistory();
+      showToast('全データを削除しました');
+    }
+
+    // ===== Utilities =====
+    function getLabelColor(label) {
+      const idx = labels.indexOf(label);
+      return LABEL_COLORS[idx >= 0 ? idx % LABEL_COLORS.length : LABEL_COLORS.length - 1];
+    }
+
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function showToast(msg) {
+      const toast = document.createElement('div');
+      toast.className = 'toast';
+      toast.textContent = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // Init
+    renderImportHistory();
+  </script>
+</body>
+</html>
