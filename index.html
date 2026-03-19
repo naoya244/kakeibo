@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>家計簿アプリ</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <style>
     :root {
       --primary: #6366f1;
@@ -580,6 +581,52 @@
   </div>
 
   <script>
+    // ===== Supabase =====
+    const SUPABASE_URL = 'https://heyysiysxoubfpiuqconz.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhleXlzaXl4b3ViZnBpdXFjb256Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NDc2MjUsImV4cCI6MjA4OTUyMzYyNX0.Cw3TWPhxBZ7ZjdFWXzwi89AfXe7H_CVnOT1eSx5yhek';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    let cloudSyncing = false;
+    async function saveToCloud() {
+      if (cloudSyncing) return;
+      cloudSyncing = true;
+      try {
+        const data = {
+          transactions,
+          labels,
+          labelRules,
+          importLogs,
+          wordScores: JSON.parse(localStorage.getItem('kakeibo_word_scores') || '{}')
+        };
+        await sb.from('app_data').upsert({
+          key: 'kakeibo_main',
+          value: data,
+          updated_at: new Date().toISOString()
+        });
+      } catch (e) {
+        console.error('Cloud save error:', e);
+      } finally {
+        cloudSyncing = false;
+      }
+    }
+
+    async function loadFromCloud() {
+      try {
+        const { data, error } = await sb.from('app_data').select('value').eq('key', 'kakeibo_main').single();
+        if (error || !data) return false;
+        const v = data.value;
+        if (v.transactions) { transactions = v.transactions; localStorage.setItem('kakeibo_transactions', JSON.stringify(transactions)); }
+        if (v.labels) { labels = v.labels; localStorage.setItem('kakeibo_labels', JSON.stringify(labels)); }
+        if (v.labelRules) { labelRules = v.labelRules; localStorage.setItem('kakeibo_rules', JSON.stringify(labelRules)); }
+        if (v.importLogs) { importLogs = v.importLogs; localStorage.setItem('kakeibo_imports', JSON.stringify(importLogs)); }
+        if (v.wordScores) { localStorage.setItem('kakeibo_word_scores', JSON.stringify(v.wordScores)); }
+        return true;
+      } catch (e) {
+        console.error('Cloud load error:', e);
+        return false;
+      }
+    }
+
     // ===== State =====
     let transactions = JSON.parse(localStorage.getItem('kakeibo_transactions') || '[]');
     let labels = JSON.parse(localStorage.getItem('kakeibo_labels') || '[]');
@@ -645,15 +692,19 @@
     // ===== Persistence =====
     function saveTransactions() {
       localStorage.setItem('kakeibo_transactions', JSON.stringify(transactions));
+      saveToCloud();
     }
     function saveLabels() {
       localStorage.setItem('kakeibo_labels', JSON.stringify(labels));
+      saveToCloud();
     }
     function saveRules() {
       localStorage.setItem('kakeibo_rules', JSON.stringify(labelRules));
+      saveToCloud();
     }
     function saveImports() {
       localStorage.setItem('kakeibo_imports', JSON.stringify(importLogs));
+      saveToCloud();
     }
 
     // ===== Tab Navigation =====
@@ -926,6 +977,7 @@
         wordScores[key][label] = (wordScores[key][label] || 0) + 1;
       });
       localStorage.setItem('kakeibo_word_scores', JSON.stringify(wordScores));
+      saveToCloud();
     }
 
     function autoLabel(description) {
@@ -1532,7 +1584,23 @@
     }
 
     // Init
-    renderImportHistory();
+    (async () => {
+      const loaded = await loadFromCloud();
+      if (loaded) {
+        // Re-initialize labels if needed
+        if (labels.length === 0) { labels = [...DEFAULT_LABELS]; saveLabels(); }
+      } else if (transactions.length > 0) {
+        // First time: push existing localStorage data to cloud
+        saveToCloud();
+      }
+      renderImportHistory();
+      if (document.querySelector('.tab.active')) {
+        const activeTab = document.querySelector('.tab.active').textContent;
+        if (activeTab.includes('明細')) renderTransactions();
+        else if (activeTab.includes('集計')) renderSummary();
+        else if (activeTab.includes('月次')) renderTrend();
+      }
+    })();
   </script>
 </body>
 </html>
