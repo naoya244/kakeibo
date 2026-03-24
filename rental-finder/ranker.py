@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from config import RANKING_WEIGHTS, RANK_THRESHOLDS, MARKET_RENT
+from config import RANKING_WEIGHTS, RANK_THRESHOLDS, MARKET_RENT, DEFAULT_MARKET_RENT
 
 
 def calculate_cost_performance_score(prop: dict) -> float:
@@ -17,8 +17,8 @@ def calculate_cost_performance_score(prop: dict) -> float:
     layout = prop["layout"]
     total_cost = prop["total_cost"]
 
-    # 相場を取得
-    market = MARKET_RENT.get(station, {})
+    # 相場を取得（未知の駅はデフォルト相場を使用）
+    market = MARKET_RENT.get(station, DEFAULT_MARKET_RENT)
     # レイアウトに応じた相場。マッチしなければ全体平均
     if "2LDK" in layout:
         market_rent = market.get("2LDK", 16.0)

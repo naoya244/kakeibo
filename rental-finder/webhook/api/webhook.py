@@ -7,6 +7,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 from http.server import BaseHTTPRequestHandler
 import urllib.request
 
@@ -38,6 +39,24 @@ def reply_message(reply_token: str, text: str):
         return resp.status
 
 
+def push_message(text: str):
+    """LINEにPushメッセージを送る（reply_tokenなしで送信）"""
+    url = "https://api.line.me/v2/bot/message/push"
+    user_id = os.environ.get("LINE_USER_ID", "")
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {os.environ['LINE_CHANNEL_ACCESS_TOKEN']}",
+    }
+    data = json.dumps({
+        "to": user_id,
+        "messages": [{"type": "text", "text": text}],
+    }).encode("utf-8")
+
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    with urllib.request.urlopen(req) as resp:
+        return resp.status
+
+
 def trigger_github_actions():
     """GitHub Actionsのworkflow_dispatchを起動"""
     owner = os.environ["GITHUB_OWNER"]
@@ -57,6 +76,40 @@ def trigger_github_actions():
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     with urllib.request.urlopen(req) as resp:
         return resp.status
+
+
+def trigger_property_analyze(property_url: str):
+    """物件分析用のGitHub Actionsを起動"""
+    owner = os.environ["GITHUB_OWNER"]
+    repo = os.environ["GITHUB_REPO"]
+    token = os.environ["GITHUB_PAT"]
+
+    url = f"https://api.github.com/repos/{owner}/{repo}/dispatches"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+    }
+    data = json.dumps({
+        "event_type": "property_analyze",
+        "client_payload": {"url": property_url},
+    }).encode("utf-8")
+
+    req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+    with urllib.request.urlopen(req) as resp:
+        return resp.status
+
+
+def extract_suumo_url(text: str) -> str | None:
+    """テキストからSUUMO賃貸URLを抽出"""
+    match = re.search(r"https?://suumo\.jp/chintai/[^\s]+", text)
+    return match.group(0) if match else None
+
+
+def is_other_realestate_url(text: str) -> bool:
+    """SUUMO以外の不動産サイトURLが含まれるか判定"""
+    pattern = r"https?://(www\.)?(homes\.co\.jp|athome\.co\.jp|chintai\.net|realestate\.yahoo\.co\.jp)"
+    return bool(re.search(pattern, text))
 
 
 class handler(BaseHTTPRequestHandler):
@@ -92,21 +145,64 @@ class handler(BaseHTTPRequestHandler):
             text = event["message"]["text"].strip()
             reply_token = event["replyToken"]
 
-            # 物件検索トリガーワード
+            # 1. SUUMO URL検出 → 物件分析
+            suumo_url = extract_suumo_url(text)
+            if suumo_url:
+                try:
+                    reply_message(
+                        reply_token,
+                        "🔍 物件を分析中です...\n"
+                        "割安かどうか判定して結果をお送りします！（1〜2分）"
+                    )
+                except Exception as e:
+                    print(f"Reply error: {e}")
+                try:
+                    status = trigger_property_analyze(suumo_url)
+                    print(f"Property analyze triggered: {status}")
+                except Exception as e:
+                    print(f"Property analyze error: {e}")
+                    try:
+                        push_message(f"⚠️ 物件分析の起動に失敗しました\n{e}")
+                    except Exception:
+                        pass
+                continue
+
+            # 2. 他の不動産サイトURL → 未対応メッセージ
+            if is_other_realestate_url(text):
+                reply_message(
+                    reply_token,
+                    "🏠 現在SUUMOの物件URLのみ対応しています。\n"
+                    "SUUMOの物件ページURLを送ってください。\n\n"
+                    "例: https://suumo.jp/chintai/jnc_XXXXXX/"
+                )
+                continue
+
+            # 3. 物件検索トリガーワード
             trigger_words = ["物件", "探して", "検索", "部屋"]
             if any(word in text for word in trigger_words):
+                # 即座に「検索中」と返信
                 try:
-                    # 即座に「検索中」と返信
                     reply_message(reply_token, "🔍 物件を検索中です...\n完了したら通知します！（1〜2分）")
-                    # GitHub Actions起動
-                    trigger_github_actions()
                 except Exception as e:
-                    print(f"Error: {e}")
+                    print(f"Reply error: {e}")
+                # GitHub Actions起動
+                try:
+                    status = trigger_github_actions()
+                    print(f"GitHub Actions triggered: {status}")
+                except Exception as e:
+                    print(f"GitHub Actions error: {e}")
+                    # エラーをPushメッセージで通知
+                    try:
+                        push_message(f"⚠️ 検索の起動に失敗しました\n{e}")
+                    except Exception:
+                        pass
             else:
                 reply_message(
                     reply_token,
                     "🏠 物件探しbot\n\n"
-                    "「物件探して」と送ると最新の物件を検索します！"
+                    "「物件探して」と送ると最新の物件を検索します！\n\n"
+                    "📊 SUUMOのURLを送ると割安度を判定します！\n"
+                    "例: https://suumo.jp/chintai/jnc_XXXXXX/"
                 )
 
         self.send_response(200)

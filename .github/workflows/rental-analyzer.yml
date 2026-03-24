@@ -1,0 +1,29 @@
+name: 物件分析
+
+on:
+  repository_dispatch:
+    types: [property_analyze]
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r rental-finder/requirements.txt
+
+      - name: Analyze property
+        working-directory: rental-finder
+        env:
+          LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
+          LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          PROPERTY_URL: ${{ github.event.client_payload.url }}
+        run: python analyzer.py
