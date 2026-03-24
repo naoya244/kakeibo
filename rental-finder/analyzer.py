@@ -147,19 +147,39 @@ def scrape_property_detail(url: str) -> dict:
         return _build_property_from_html(soup, url)
 
 
+def _safe_int(value, default=0) -> int:
+    """空文字列や非数値を安全にintに変換"""
+    if value is None or value == "":
+        return default
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+
+def _safe_float(value, default=None) -> float | None:
+    """空文字列や非数値を安全にfloatに変換"""
+    if value is None or value == "":
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+
 def _build_property_from_js(js_data: dict, soup: BeautifulSoup, url: str) -> dict:
     """JavaScriptオブジェクトから物件データを構築"""
     # 家賃（円 → 万円）
-    chinryo = int(js_data.get("chinryo", 0))
+    chinryo = _safe_int(js_data.get("chinryo"))
     rent = chinryo / 10000 if chinryo else None
 
     # 管理費（円 → 万円）
-    kanrihi = int(js_data.get("kanrihi", 0))
+    kanrihi = _safe_int(js_data.get("kanrihi"))
     admin_fee = kanrihi / 10000
 
     # 敷金・礼金（円表示用）
-    shikikin = int(js_data.get("shikikin", 0))
-    reikin = int(js_data.get("reikin", 0))
+    shikikin = _safe_int(js_data.get("shikikin"))
+    reikin = _safe_int(js_data.get("reikin"))
     deposit = f"{shikikin / 10000:.1f}万円" if shikikin else "-"
     gratuity = f"{reikin / 10000:.1f}万円" if reikin else "-"
 
@@ -168,11 +188,11 @@ def _build_property_from_js(js_data: dict, soup: BeautifulSoup, url: str) -> dic
 
     # 面積
     menseki = js_data.get("mensekiDisp", "")
-    area = float(menseki) if menseki else None
+    area = _safe_float(menseki)
 
     # 築年数
     chikugonensu = js_data.get("chikugonensu", "")
-    building_age = int(chikugonensu) if chikugonensu else None
+    building_age = _safe_int(chikugonensu, default=None) if chikugonensu else None
     building_age_text = f"築{building_age}年" if building_age is not None else ""
     if building_age == 0:
         building_age_text = "新築"
