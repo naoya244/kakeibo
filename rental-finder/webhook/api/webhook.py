@@ -162,7 +162,8 @@ class handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     print(f"Property analyze error: {e}")
                     try:
-                        push_message(f"⚠️ 物件分析の起動に失敗しました\n{e}")
+                        # エラー詳細にトークン等が含まれる可能性があるため、概要のみ通知
+                        push_message("⚠️ 物件分析の起動に失敗しました。\nしばらく経ってから再度お試しください。")
                     except Exception:
                         pass
                 continue
@@ -193,7 +194,7 @@ class handler(BaseHTTPRequestHandler):
                     print(f"GitHub Actions error: {e}")
                     # エラーをPushメッセージで通知
                     try:
-                        push_message(f"⚠️ 検索の起動に失敗しました\n{e}")
+                        push_message("⚠️ 検索の起動に失敗しました。\nしばらく経ってから再度お試しください。")
                     except Exception:
                         pass
             else:
