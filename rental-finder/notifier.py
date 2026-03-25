@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 from linebot.v3.messaging import (
     ApiClient,
+    BroadcastRequest,
     Configuration,
     MessagingApi,
     PushMessageRequest,
@@ -69,6 +70,29 @@ def send_line_message(text: str, to: str | None = None) -> bool:
         return False
 
 
+def broadcast_line_message(text: str) -> bool:
+    """Botの友だち全員にメッセージをブロードキャスト送信"""
+    access_token = os.environ.get("LINE_CHANNEL_ACCESS_TOKEN")
+    if not access_token:
+        print("LINE_CHANNEL_ACCESS_TOKEN が設定されていません")
+        return False
+
+    configuration = Configuration(access_token=access_token)
+
+    try:
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            broadcast_request = BroadcastRequest(
+                messages=[TextMessage(text=text)],
+            )
+            line_bot_api.broadcast(broadcast_request)
+            print("LINE ブロードキャスト送信しました（全友だち）")
+            return True
+    except Exception as e:
+        print(f"LINE ブロードキャスト送信に失敗: {e}")
+        return False
+
+
 def send_property_notifications(properties: list[dict]) -> int:
     """
     物件リストをLINEで通知する
@@ -110,12 +134,17 @@ def send_property_notifications(properties: list[dict]) -> int:
     if current_message:
         messages.append(current_message)
 
-    # LINEに送信（5メッセージずつ）
+    # LINEに送信（ブロードキャストで全友だちに配信）
+    use_broadcast = os.environ.get("LINE_BROADCAST", "").strip().lower() in ("1", "true", "yes")
     sent_count = 0
-    for i in range(0, len(messages), 1):  # 1メッセージずつ送信（安全のため）
+    for i in range(0, len(messages), 1):
         msg = messages[i]
         if msg.strip():
-            if send_line_message(msg):
+            if use_broadcast:
+                success = broadcast_line_message(msg)
+            else:
+                success = send_line_message(msg)
+            if success:
                 sent_count += 1
 
     return sent_count

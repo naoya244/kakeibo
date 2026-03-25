@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>通勤駅ファインダー | 東京駅・品川駅 40分圏内</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f8fafc; --fg: #0f172a; --primary: #3b82f6; --primary-dark: #1d4ed8;
+      --accent: #06b6d4; --surface: #ffffff; --surface-hover: #f1f5f9;
+      --border: #e2e8f0; --muted: #64748b;
+    }
+    body { font-family: 'Inter', 'Noto Sans JP', sans-serif; background: var(--bg); color: var(--fg); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+
+    /* Header */
+    .header { height: 52px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; flex-shrink: 0; z-index: 10; }
+    .header-logo { width: 32px; height: 32px; background: var(--primary); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; }
+    .header-title { font-size: 15px; font-weight: 700; }
+    .header-sub { font-size: 11px; color: var(--muted); }
+    .header-badges { margin-left: auto; display: flex; gap: 6px; }
+    .header-badge { font-size: 11px; color: var(--muted); background: var(--surface-hover); padding: 3px 10px; border-radius: 20px; }
+    .toggle-btn { background: none; border: none; cursor: pointer; padding: 6px; border-radius: 6px; color: var(--muted); font-size: 18px; }
+    .toggle-btn:hover { background: var(--surface-hover); }
+
+    /* Layout */
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* Sidebar */
+    .sidebar { width: 400px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--surface); transition: width 0.3s ease, opacity 0.3s ease; overflow: hidden; }
+    .sidebar.collapsed { width: 0; opacity: 0; }
+    .sort-bar { padding: 10px; border-bottom: 1px solid var(--border); display: flex; gap: 6px; flex-shrink: 0; }
+    .sort-btn { flex: 1; font-size: 11px; padding: 6px 8px; border-radius: 8px; border: none; cursor: pointer; font-weight: 500; background: var(--surface-hover); color: var(--muted); transition: all 0.2s; font-family: inherit; }
+    .sort-btn.active { background: var(--primary); color: white; box-shadow: 0 1px 3px rgba(59,130,246,0.3); }
+    .station-list { flex: 1; overflow-y: auto; }
+    .station-item { width: 100%; text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.15s; background: none; border-left: 3px solid transparent; display: block; font-family: inherit; }
+    .station-item:hover { background: var(--surface-hover); }
+    .station-item.selected { background: #eff6ff; border-left-color: var(--primary); }
+    .station-name { font-size: 17px; font-weight: 700; }
+    .station-name-en { font-size: 11px; color: var(--muted); font-weight: 500; margin-left: 6px; }
+    .station-lines { display: flex; flex-wrap: wrap; gap: 4px; margin: 5px 0 7px; }
+    .station-line-tag { font-size: 10px; background: var(--surface-hover); color: var(--muted); padding: 2px 6px; border-radius: 3px; }
+    .station-stats { display: flex; gap: 12px; margin-bottom: 6px; }
+    .stat { font-size: 12px; display: flex; align-items: center; gap: 3px; }
+    .stat-icon { font-size: 11px; }
+    .stat-val-tokyo { color: var(--primary); font-weight: 700; }
+    .stat-val-shinagawa { color: var(--accent); font-weight: 700; }
+    .stat-val-rent { color: #059669; font-weight: 700; }
+    .station-desc { font-size: 11px; color: var(--muted); line-height: 1.6; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+    .highlights { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); animation: fadeIn 0.25s ease; }
+    .highlights-title { font-size: 11px; font-weight: 600; margin-bottom: 5px; display: flex; align-items: center; gap: 4px; }
+    .highlight-item { font-size: 11px; color: var(--muted); line-height: 1.6; padding-left: 12px; position: relative; }
+    .highlight-item::before { content: '•'; position: absolute; left: 0; color: var(--primary); }
+    .sidebar-footer { padding: 10px 16px; border-top: 1px solid var(--border); background: var(--surface-hover); font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; flex-shrink: 0; }
+
+    /* Map */
+    .map-area { flex: 1; position: relative; }
+    #map { width: 100%; height: 100%; }
+
+    /* Legend */
+    .legend { position: absolute; bottom: 20px; left: 12px; background: rgba(255,255,255,0.95); backdrop-filter: blur(8px); border: 1px solid var(--border); border-radius: 12px; padding: 14px; width: 210px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); z-index: 5; }
+    .legend-title { font-size: 11px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; gap: 5px; }
+    .legend-item { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 8px; cursor: pointer; font-size: 11px; transition: all 0.15s; margin-bottom: 2px; }
+    .legend-item:hover { background: var(--surface-hover); }
+    .legend-item.active { font-weight: 500; }
+    .legend-item.active.sauna { background: #fef2f2; color: #ef4444; }
+    .legend-item.active.gym { background: #f5f3ff; color: #8b5cf6; }
+    .legend-item.active.park { background: #f0fdf4; color: #22c55e; }
+    .legend-item.active.railway { background: #eff6ff; color: #3b82f6; }
+    .legend-dot { width: 10px; height: 10px; border-radius: 50%; border: 2px solid #d1d5db; flex-shrink: 0; }
+    .legend-item.active .legend-dot { border-color: currentColor; background: currentColor; }
+    .legend-sep { height: 1px; background: var(--border); margin: 6px 0; }
+    .railway-colors { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+    .railway-color-item { display: flex; align-items: center; gap: 6px; font-size: 10px; color: var(--muted); padding: 2px 0; }
+    .railway-color-line { width: 16px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+
+    /* Setup page */
+    .setup { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 32px; text-align: center; }
+    .setup h1 { font-size: 28px; margin: 16px 0 8px; }
+    .setup-box { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 24px; text-align: left; max-width: 480px; width: 100%; }
+    .setup-box h2 { font-size: 16px; margin-bottom: 10px; }
+    .setup-box p { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+    .setup-box ol { font-size: 13px; color: var(--muted); padding-left: 20px; line-height: 2; }
+    .setup-box code { background: var(--surface-hover); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+    .setup-box pre { background: var(--fg); color: var(--surface); padding: 12px; border-radius: 8px; font-size: 12px; margin-top: 8px; overflow-x: auto; }
+    .setup-box a { color: var(--primary); }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+
+  <script>
+    // ==================== DATA ====================
+    const TOKYO_STATION = { lat: 35.6812, lng: 139.7671 };
+    const SHINAGAWA_STATION = { lat: 35.6284, lng: 139.7387 };
+
+    const stations = [
+      { id:"oimachi", name:"大井町", nameEn:"Oimachi", lat:35.6067, lng:139.7351, lines:["JR京浜東北線","東急大井町線","りんかい線"], toTokyo:12, toShinagawa:4, rent:13.5, highlights:["品川駅まで1駅4分の圧倒的アクセス","アトレ大井町・イトーヨーカドーで買い物便利","3路線利用可能で移動の自由度が高い"], desc:"品川至近のコンパクトシティ。駅前に商業施設が集約されており、生活利便性が非常に高い。再開発も進行中。" },
+      { id:"omori", name:"大森", nameEn:"Omori", lat:35.5878, lng:139.7279, lines:["JR京浜東北線"], toTokyo:15, toShinagawa:6, rent:11.0, highlights:["品川6分・東京15分のバランス良好","山王エリアは閑静な高級住宅街","大森駅前の商店街が充実"], desc:"品川・東京の両方に近いバランス型。山側は高級住宅街、海側は庶民的な商店街と、エリアごとに異なる表情を持つ。" },
+      { id:"kamata", name:"蒲田", nameEn:"Kamata", lat:35.5625, lng:139.7159, lines:["JR京浜東北線","東急池上線","東急多摩川線"], toTokyo:20, toShinagawa:10, rent:10.0, highlights:["家賃が手頃でコスパ最高クラス","銭湯・サウナの聖地（黒湯温泉）","飲食店の充実度が23区トップレベル"], desc:"「東京のカオス」とも呼ばれる活気ある街。天然黒湯温泉の銭湯が多数あり、サウナ好きには特におすすめ。" },
+      { id:"kawasaki", name:"川崎", nameEn:"Kawasaki", lat:35.5308, lng:139.6968, lines:["JR東海道線","JR京浜東北線","JR南武線"], toTokyo:18, toShinagawa:10, rent:10.0, highlights:["ラゾーナ川崎は駅直結の巨大商業施設","東海道線利用で東京駅18分の快速アクセス","川崎市は都内より税制面で有利"], desc:"駅前再開発でラゾーナ川崎をはじめ大型商業施設が充実。神奈川県で都内勤務者に最も人気の高い駅の一つ。" },
+      { id:"musashikosugi", name:"武蔵小杉", nameEn:"Musashi-Kosugi", lat:35.5764, lng:139.6596, lines:["JR横須賀線","JR南武線","東急東横線","東急目黒線"], toTokyo:20, toShinagawa:12, rent:13.0, highlights:["タワーマンション群の近代的な街並み","4路線利用可で渋谷・横浜方面にもアクセス◎","グランツリー等の商業施設が充実"], desc:"タワマン林立で「住みたい街」上位常連。JR横須賀線と東急線の利用で都内各方面へのアクセスが抜群。" },
+      { id:"yokohama", name:"横浜", nameEn:"Yokohama", lat:35.4657, lng:139.6225, lines:["JR東海道線","JR京浜東北線","JR横須賀線","東急東横線","京急本線","相鉄線","横浜市営地下鉄"], toTokyo:26, toShinagawa:18, rent:10.0, highlights:["みなとみらいの絶景を日常に","10路線以上のターミナル駅","横浜駅周辺の商業施設は東京並みの充実度"], desc:"日本第2の都市・横浜の中心駅。みなとみらいや中華街など魅力的なスポットが徒歩圏内。" },
+      { id:"akabane", name:"赤羽", nameEn:"Akabane", lat:35.7776, lng:139.7205, lines:["JR京浜東北線","JR埼京線","JR宇都宮線","JR高崎線","JR湘南新宿ライン"], toTokyo:13, toShinagawa:20, rent:10.0, highlights:["「せんべろの聖地」飲み屋街が有名","5路線利用可能で北の玄関口","東京駅13分で家賃10万円台はコスパ◎"], desc:"北区最大のターミナル駅。昔ながらの飲み屋街と近代的な商業施設が共存する人気の街。荒川沿いのランニングコースも魅力。" },
+      { id:"kitasenju", name:"北千住", nameEn:"Kita-Senju", lat:35.7497, lng:139.8049, lines:["JR常磐線","メトロ千代田線","メトロ日比谷線","つくばエクスプレス","東武スカイツリーライン"], toTokyo:10, toShinagawa:22, rent:10.5, highlights:["5路線利用の超便利ターミナル","東京駅まで10分の最速アクセス","下町グルメの宝庫・宿場町の風情"], desc:"5路線が乗り入れる足立区の巨大ターミナル。「穴場だと思う街ランキング」で常に上位。" },
+      { id:"urawa", name:"浦和", nameEn:"Urawa", lat:35.8585, lng:139.6566, lines:["JR京浜東北線","JR宇都宮線","JR高崎線","JR湘南新宿ライン"], toTokyo:25, toShinagawa:30, rent:9.0, highlights:["埼玉県随一の文教地区","浦和レッズの本拠地でサッカー熱が高い","都内より広い物件が2万円安く借りられる"], desc:"さいたま市の行政・文化の中心地。落ち着いた住環境と高い教育水準で知られる。" },
+      { id:"omiya", name:"大宮", nameEn:"Omiya", lat:35.9063, lng:139.6237, lines:["JR京浜東北線","JR宇都宮線","JR高崎線","JR埼京線","東武野田線","ニューシャトル"], toTokyo:30, toShinagawa:35, rent:8.0, highlights:["埼玉最大のターミナル・新幹線も停車","家賃8万円台で広い1LDKが見つかる","大宮駅周辺の再開発で今後さらに発展"], desc:"埼玉県最大のターミナル駅。新幹線6路線が停車する交通の要所。家賃の安さと利便性のバランスが最も良い駅の一つ。" },
+      { id:"matsudo", name:"松戸", nameEn:"Matsudo", lat:35.7833, lng:139.9016, lines:["JR常磐線","新京成線"], toTokyo:22, toShinagawa:30, rent:8.0, highlights:["都心至近なのに家賃が圧倒的に安い","江戸川沿いの自然豊かな環境","松戸駅周辺の再開発が進行中"], desc:"千葉県松戸市の中心駅。常磐線快速で東京駅へ直通。家賃の安さと自然環境の豊かさを求める方におすすめ。" },
+      { id:"totsuka", name:"戸塚", nameEn:"Totsuka", lat:35.3951, lng:139.534, lines:["JR東海道線","JR横須賀線","横浜市営地下鉄"], toTokyo:40, toShinagawa:32, rent:8.5, highlights:["トツカーナ・サクラス等の駅直結商業施設","横浜南部の落ち着いた住宅街","品川32分で家賃8.5万円は破格"], desc:"横浜市南部の主要駅。東海道線の利用で品川まで32分と意外と近い。駅前再開発で利便性が大幅に向上。" },
+    ];
+
+    const railwayLines = [
+      { name:"JR東海道線", color:"#F68B1E", path:[{lat:35.6812,lng:139.7671},{lat:35.6584,lng:139.7414},{lat:35.6284,lng:139.7387},{lat:35.5308,lng:139.6968},{lat:35.4657,lng:139.6225},{lat:35.3951,lng:139.534}] },
+      { name:"JR京浜東北線", color:"#00B2E5", path:[{lat:35.9063,lng:139.6237},{lat:35.8585,lng:139.6566},{lat:35.7776,lng:139.7205},{lat:35.7309,lng:139.7291},{lat:35.7141,lng:139.7774},{lat:35.6812,lng:139.7671},{lat:35.6584,lng:139.7414},{lat:35.6284,lng:139.7387},{lat:35.6067,lng:139.7351},{lat:35.5878,lng:139.7279},{lat:35.5625,lng:139.7159},{lat:35.5308,lng:139.6968},{lat:35.4657,lng:139.6225}] },
+      { name:"JR横須賀線", color:"#0067C0", path:[{lat:35.6812,lng:139.7671},{lat:35.6584,lng:139.7414},{lat:35.6284,lng:139.7387},{lat:35.5764,lng:139.6596},{lat:35.4657,lng:139.6225},{lat:35.3951,lng:139.534}] },
+      { name:"JR常磐線(上野東京ライン)", color:"#00A569", path:[{lat:35.6812,lng:139.7671},{lat:35.7141,lng:139.7774},{lat:35.7497,lng:139.8049},{lat:35.7833,lng:139.9016}] },
+      { name:"JR宇都宮線・高崎線", color:"#E55D12", path:[{lat:35.6812,lng:139.7671},{lat:35.7141,lng:139.7774},{lat:35.7776,lng:139.7205},{lat:35.8585,lng:139.6566},{lat:35.9063,lng:139.6237}] },
+    ];
+
+    const facilities = [
+      // 大井町
+      {name:"おふろの王様 大井町店",type:"sauna",lat:35.6051,lng:139.7378,desc:"駅徒歩3分のスーパー銭湯"},{name:"ゴールドジム 大井町",type:"gym",lat:35.6073,lng:139.7340,desc:"本格的なトレーニング施設"},{name:"しながわ中央公園",type:"park",lat:35.6111,lng:139.7403,desc:"広々とした芝生広場"},
+      // 大森
+      {name:"天然温泉 平和島",type:"sauna",lat:35.5823,lng:139.7383,desc:"天然温泉のスーパー銭湯"},{name:"エニタイムフィットネス 大森",type:"gym",lat:35.5885,lng:139.7262,desc:"24時間営業ジム"},{name:"大森ふるさとの浜辺公園",type:"park",lat:35.5803,lng:139.7407,desc:"人工砂浜のある海浜公園"},
+      // 蒲田
+      {name:"蒲田温泉",type:"sauna",lat:35.5595,lng:139.7104,desc:"天然黒湯温泉の名物銭湯"},{name:"はすぬま温泉",type:"sauna",lat:35.5655,lng:139.7083,desc:"黒湯温泉・サウナ完備"},{name:"ゆ〜シティー蒲田",type:"sauna",lat:35.5639,lng:139.7183,desc:"駅近の人気銭湯サウナ"},{name:"ジェクサー 蒲田",type:"gym",lat:35.5628,lng:139.7156,desc:"JR東日本系列フィットネス"},{name:"多摩川台公園",type:"park",lat:35.5757,lng:139.6754,desc:"多摩川沿いの緑豊かな公園"},
+      // 川崎
+      {name:"ヨコヤマ・ユーランド鶴見",type:"sauna",lat:35.5248,lng:139.6789,desc:"本格サウナで有名"},{name:"ゴールドジム 川崎",type:"gym",lat:35.5301,lng:139.6979,desc:"ラゾーナ近くの本格ジム"},{name:"富士見公園",type:"park",lat:35.5340,lng:139.7020,desc:"川崎駅近くの市民公園"},
+      // 武蔵小杉
+      {name:"湯けむりの庄",type:"sauna",lat:35.5697,lng:139.6505,desc:"武蔵小杉近くのスーパー銭湯"},{name:"ティップネス 武蔵小杉",type:"gym",lat:35.5771,lng:139.6573,desc:"総合フィットネスジム"},{name:"等々力緑地",type:"park",lat:35.5700,lng:139.6426,desc:"川崎フロンターレの本拠地"},{name:"中原平和公園",type:"park",lat:35.5808,lng:139.6554,desc:"タワマン群に隣接する公園"},
+      // 横浜
+      {name:"スカイスパYOKOHAMA",type:"sauna",lat:35.4650,lng:139.6205,desc:"横浜駅直結の人気サウナ"},{name:"INSPA横浜",type:"sauna",lat:35.4585,lng:139.6443,desc:"みなとみらいのスパ施設"},{name:"エニタイムフィットネス 横浜西口",type:"gym",lat:35.4673,lng:139.6193,desc:"24時間営業ジム"},{name:"山下公園",type:"park",lat:35.4435,lng:139.6520,desc:"横浜を代表する海沿いの公園"},{name:"臨港パーク",type:"park",lat:35.4603,lng:139.6355,desc:"みなとみらいの海浜公園"},
+      // 赤羽
+      {name:"さやの湯処",type:"sauna",lat:35.7735,lng:139.7036,desc:"源泉掛け流しの天然温泉"},{name:"エニタイムフィットネス 赤羽",type:"gym",lat:35.7780,lng:139.7221,desc:"24時間営業ジム"},{name:"荒川赤羽桜堤緑地",type:"park",lat:35.7856,lng:139.7199,desc:"荒川沿いの桜並木とランニングコース"},{name:"赤羽自然観察公園",type:"park",lat:35.7825,lng:139.7151,desc:"自然豊かな都市公園"},
+      // 北千住
+      {name:"大黒湯",type:"sauna",lat:35.7484,lng:139.8013,desc:"レトロ銭湯・サウナが人気"},{name:"タカラ湯",type:"sauna",lat:35.7512,lng:139.7991,desc:"庭園のある名物銭湯"},{name:"ジェクサー 北千住",type:"gym",lat:35.7501,lng:139.8041,desc:"駅直結のフィットネス"},{name:"荒川河川敷(千住)",type:"park",lat:35.7549,lng:139.7974,desc:"広大な河川敷でランニング・BBQ"},
+      // 浦和
+      {name:"美楽温泉 SPA-HERBS",type:"sauna",lat:35.8508,lng:139.6414,desc:"浦和近くの本格スパ施設"},{name:"ルネサンス 浦和",type:"gym",lat:35.8570,lng:139.6550,desc:"総合スポーツクラブ"},{name:"別所沼公園",type:"park",lat:35.8490,lng:139.6467,desc:"浦和の代表的な都市公園"},
+      // 大宮
+      {name:"おふろcafé utatane",type:"sauna",lat:35.9217,lng:139.6178,desc:"おしゃれスパ施設・サウナ充実"},{name:"ゴールドジム 大宮",type:"gym",lat:35.9059,lng:139.6251,desc:"本格トレーニングジム"},{name:"大宮公園",type:"park",lat:35.9094,lng:139.6310,desc:"広大な都市公園・氷川神社隣接"},
+      // 松戸
+      {name:"テルメ末広",type:"sauna",lat:35.7802,lng:139.8963,desc:"松戸の人気スーパー銭湯"},{name:"エニタイムフィットネス 松戸",type:"gym",lat:35.7841,lng:139.9008,desc:"24時間営業ジム"},{name:"21世紀の森と広場",type:"park",lat:35.7929,lng:139.9156,desc:"広大な自然公園"},{name:"江戸川河川敷(松戸)",type:"park",lat:35.7841,lng:139.8921,desc:"ランニングや花火大会で有名"},
+      // 戸塚
+      {name:"竜泉寺の湯 横濱鶴ヶ峰店",type:"sauna",lat:35.4605,lng:139.5396,desc:"人気スーパー銭湯チェーン"},{name:"ティップネス 戸塚",type:"gym",lat:35.3953,lng:139.5332,desc:"駅近フィットネスジム"},{name:"舞岡公園",type:"park",lat:35.3867,lng:139.5488,desc:"里山の自然が残る大規模公園"},{name:"柏尾川プロムナード",type:"park",lat:35.3966,lng:139.5300,desc:"桜並木が美しい川沿いの遊歩道"},
+    ];
+
+    // ==================== STATE ====================
+    let selectedStation = null;
+    let sortBy = 'toTokyo';
+    let showFacilities = { sauna: true, gym: true, park: true };
+    let showRailways = true;
+    let sidebarOpen = true;
+    let map, markers = [], facilityMarkers = [], polylines = [], infoWindow;
+
+    // ==================== RENDER ====================
+    function getSortedStations() {
+      return [...stations].sort((a, b) => sortBy === 'rent' ? a.rent - b.rent : a[sortBy] - b[sortBy]);
+    }
+
+    function renderSidebar() {
+      const sorted = getSortedStations();
+      const listEl = document.getElementById('station-list');
+      if (!listEl) return;
+      listEl.innerHTML = sorted.map(s => `
+        <button class="station-item ${selectedStation?.id === s.id ? 'selected' : ''}" data-id="${s.id}">
+          <div>
+            <span class="station-name">${s.name}</span>
+            <span class="station-name-en">${s.nameEn}</span>
+          </div>
+          <div class="station-lines">
+            ${s.lines.slice(0, 3).map(l => `<span class="station-line-tag">${l}</span>`).join('')}
+            ${s.lines.length > 3 ? `<span class="station-line-tag">+${s.lines.length - 3}</span>` : ''}
+          </div>
+          <div class="station-stats">
+            <span class="stat"><span class="stat-icon">🏢</span> 東京 <span class="stat-val-tokyo">${s.toTokyo}分</span></span>
+            <span class="stat"><span class="stat-icon">🏢</span> 品川 <span class="stat-val-shinagawa">${s.toShinagawa}分</span></span>
+            <span class="stat"><span class="stat-icon">💰</span> 1LDK <span class="stat-val-rent">${s.rent}万円</span></span>
+          </div>
+          <div class="station-desc">${s.desc}</div>
+          ${selectedStation?.id === s.id ? `
+            <div class="highlights">
+              <div class="highlights-title">⭐ おすすめポイント</div>
+              ${s.highlights.map(h => `<div class="highlight-item">${h}</div>`).join('')}
+            </div>
+          ` : ''}
+        </button>
+      `).join('');
+
+      listEl.querySelectorAll('.station-item').forEach(el => {
+        el.addEventListener('click', () => selectStation(el.dataset.id));
+      });
+
+      document.getElementById('sidebar-count').textContent = `${sorted.length}駅を表示中`;
+      const rents = sorted.map(s => s.rent);
+      document.getElementById('sidebar-rent').textContent = `家賃相場: ${Math.min(...rents)}〜${Math.max(...rents)}万円`;
+    }
+
+    function selectStation(id) {
+      selectedStation = stations.find(s => s.id === id) || null;
+      renderSidebar();
+      updateMapSelection();
+    }
+
+    // ==================== MAP ====================
+    function initMap() {
+      map = new google.maps.Map(document.getElementById('map'), {
+        center: { lat: 35.62, lng: 139.72 },
+        zoom: 11,
+        disableDefaultUI: false,
+        zoomControl: true,
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: true,
+        styles: [
+          { featureType: "transit.line", stylers: [{ visibility: "simplified" }, { weight: 1.5 }] },
+          { featureType: "poi", stylers: [{ visibility: "off" }] },
+          { featureType: "poi.park", stylers: [{ visibility: "simplified" }] },
+          { featureType: "water", elementType: "geometry.fill", stylers: [{ color: "#c9e8f7" }] },
+          { featureType: "landscape", stylers: [{ color: "#f5f5f5" }] },
+          { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#e0e0e0" }] },
+        ],
+      });
+
+      infoWindow = new google.maps.InfoWindow();
+
+      // Office markers
+      [{ pos: TOKYO_STATION, label: "東" }, { pos: SHINAGAWA_STATION, label: "品" }].forEach(({ pos, label }) => {
+        new google.maps.Marker({
+          position: pos, map,
+          icon: { url: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" width="36" height="36"><circle cx="18" cy="18" r="16" fill="#dc2626" stroke="white" stroke-width="3"/><text x="18" y="23" text-anchor="middle" fill="white" font-size="13" font-weight="bold">${label}</text></svg>`)}`, scaledSize: new google.maps.Size(36, 36), anchor: new google.maps.Point(18, 18) },
+          zIndex: 100,
+        });
+      });
+
+      // Station markers
+      stations.forEach(s => {
+        const marker = new google.maps.Marker({
+          position: { lat: s.lat, lng: s.lng }, map,
+          icon: makeStationIcon(s, false),
+          title: `${s.name}駅`, zIndex: 50,
+        });
+        marker.stationId = s.id;
+        marker.addListener('click', () => selectStation(s.id));
+        markers.push(marker);
+      });
+
+      drawRailways();
+      drawFacilities();
+    }
+
+    function makeStationIcon(s, selected) {
+      const sz = selected ? 44 : 32;
+      const fill = selected ? '#3b82f6' : '#1e40af';
+      const fs = selected ? 14 : 10;
+      return {
+        url: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${sz} ${sz}" width="${sz}" height="${sz}"><circle cx="${sz/2}" cy="${sz/2}" r="${sz/2-2}" fill="${fill}" stroke="white" stroke-width="3"/><text x="${sz/2}" y="${sz/2+5}" text-anchor="middle" fill="white" font-size="${fs}" font-weight="bold">${s.name.slice(0,2)}</text></svg>`)}`,
+        scaledSize: new google.maps.Size(sz, sz),
+        anchor: new google.maps.Point(sz/2, sz/2),
+      };
+    }
+
+    function updateMapSelection() {
+      markers.forEach(m => {
+        const s = stations.find(st => st.id === m.stationId);
+        const isSel = selectedStation?.id === m.stationId;
+        m.setIcon(makeStationIcon(s, isSel));
+        m.setZIndex(isSel ? 90 : 50);
+      });
+
+      if (selectedStation) {
+        map.panTo({ lat: selectedStation.lat, lng: selectedStation.lng });
+        map.setZoom(14);
+        infoWindow.setContent(`
+          <div style="min-width:220px;padding:4px;font-family:Inter,'Noto Sans JP',sans-serif">
+            <h3 style="margin:0 0 6px;font-size:15px;font-weight:700;color:#1e40af">${selectedStation.name}駅</h3>
+            <div style="display:flex;gap:12px;margin-bottom:6px;font-size:13px">
+              <span>🏢 東京 <strong style="color:#3b82f6">${selectedStation.toTokyo}分</strong></span>
+              <span>🏢 品川 <strong style="color:#06b6d4">${selectedStation.toShinagawa}分</strong></span>
+            </div>
+            <div style="font-size:13px;margin-bottom:6px">💰 1LDK相場: <strong style="color:#059669">${selectedStation.rent}万円</strong></div>
+            <p style="font-size:11px;color:#64748b;margin:0;line-height:1.5">${selectedStation.desc}</p>
+          </div>
+        `);
+        infoWindow.setPosition({ lat: selectedStation.lat + 0.004, lng: selectedStation.lng });
+        infoWindow.open(map);
+      } else {
+        infoWindow.close();
+      }
+    }
+
+    function drawRailways() {
+      polylines.forEach(p => p.setMap(null));
+      polylines = [];
+      if (!showRailways) return;
+      railwayLines.forEach(line => {
+        const pl = new google.maps.Polyline({
+          path: line.path, map,
+          strokeColor: line.color, strokeWeight: 4, strokeOpacity: 0.7, geodesic: true,
+        });
+        polylines.push(pl);
+      });
+    }
+
+    function drawFacilities() {
+      facilityMarkers.forEach(m => m.setMap(null));
+      facilityMarkers = [];
+      const icons = {
+        sauna: { bg: '#ef4444', emoji: '♨' },
+        gym: { bg: '#8b5cf6', emoji: '💪' },
+        park: { bg: '#22c55e', emoji: '🌳' },
+      };
+      facilities.forEach(f => {
+        if (!showFacilities[f.type]) return;
+        const { bg, emoji } = icons[f.type];
+        const m = new google.maps.Marker({
+          position: { lat: f.lat, lng: f.lng }, map,
+          icon: {
+            url: `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24"><circle cx="12" cy="12" r="11" fill="${bg}" stroke="white" stroke-width="1.5"/><text x="12" y="16" text-anchor="middle" fill="white" font-size="11">${emoji}</text></svg>`)}`,
+            scaledSize: new google.maps.Size(22, 22),
+            anchor: new google.maps.Point(11, 11),
+          },
+          title: `${f.name}${f.desc ? ' - ' + f.desc : ''}`,
+          zIndex: 5,
+        });
+        facilityMarkers.push(m);
+      });
+    }
+
+    // ==================== INIT ====================
+    function render() {
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        <div class="header">
+          <button class="toggle-btn" id="toggle-sidebar">${sidebarOpen ? '◀' : '▶'}</button>
+          <div class="header-logo">🚃</div>
+          <div>
+            <div class="header-title">通勤駅ファインダー</div>
+            <div class="header-sub">東京駅・品川駅から1本40分以内</div>
+          </div>
+          <div class="header-badges">
+            <span class="header-badge">🏢 東京駅</span>
+            <span class="header-badge">🏢 品川駅</span>
+          </div>
+        </div>
+        <div class="main">
+          <div class="sidebar ${sidebarOpen ? '' : 'collapsed'}" id="sidebar">
+            <div class="sort-bar">
+              <button class="sort-btn ${sortBy==='toTokyo'?'active':''}" data-sort="toTokyo">東京駅が近い順</button>
+              <button class="sort-btn ${sortBy==='toShinagawa'?'active':''}" data-sort="toShinagawa">品川駅が近い順</button>
+              <button class="sort-btn ${sortBy==='rent'?'active':''}" data-sort="rent">家賃が安い順</button>
+            </div>
+            <div class="station-list" id="station-list"></div>
+            <div class="sidebar-footer">
+              <span id="sidebar-count"></span>
+              <span id="sidebar-rent"></span>
+            </div>
+          </div>
+          <div class="map-area">
+            <div id="map"></div>
+            <div class="legend">
+              <div class="legend-title">📍 表示設定</div>
+              <div class="legend-item ${showFacilities.sauna?'active':''} sauna" data-type="sauna"><span class="legend-dot"></span>サウナ・温泉</div>
+              <div class="legend-item ${showFacilities.gym?'active':''} gym" data-type="gym"><span class="legend-dot"></span>ジム</div>
+              <div class="legend-item ${showFacilities.park?'active':''} park" data-type="park"><span class="legend-dot"></span>公園</div>
+              <div class="legend-sep"></div>
+              <div class="legend-item ${showRailways?'active':''} railway" data-type="railway"><span class="legend-dot"></span>路線を表示</div>
+              ${showRailways ? `
+                <div class="railway-colors">
+                  ${railwayLines.map(l => `<div class="railway-color-item"><div class="railway-color-line" style="background:${l.color}"></div>${l.name}</div>`).join('')}
+                </div>
+              ` : ''}
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Events
+      document.getElementById('toggle-sidebar').addEventListener('click', () => { sidebarOpen = !sidebarOpen; render(); initMap(); renderSidebar(); });
+      document.querySelectorAll('.sort-btn').forEach(btn => {
+        btn.addEventListener('click', () => { sortBy = btn.dataset.sort; document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); renderSidebar(); });
+      });
+      document.querySelectorAll('.legend-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const type = item.dataset.type;
+          if (type === 'railway') { showRailways = !showRailways; item.classList.toggle('active'); drawRailways(); render(); initMap(); renderSidebar(); }
+          else { showFacilities[type] = !showFacilities[type]; item.classList.toggle('active'); drawFacilities(); }
+        });
+      });
+
+      renderSidebar();
+    }
+
+    window.initMap = function() { render(); initMap(); };
+
+    // API key handling
+    function loadGoogleMaps(apiKey) {
+      localStorage.setItem('gmaps_api_key', apiKey);
+      const script = document.createElement('script');
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&callback=initMap`;
+      script.async = true;
+      document.head.appendChild(script);
+    }
+
+    function showSetup() {
+      const app = document.getElementById('app');
+      app.innerHTML = `
+        <div class="setup">
+          <div style="font-size:56px">🗺️</div>
+          <h1>通勤駅ファインダー</h1>
+          <p style="color:var(--muted);margin-bottom:24px">東京駅・品川駅から1本40分以内のおすすめ駅を地図で探す</p>
+          <div class="setup-box">
+            <h2>Google Maps APIキーを入力</h2>
+            <p>地図を表示するにはGoogle Maps APIキーが必要です。</p>
+            <ol>
+              <li><a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a>でAPIキーを作成</li>
+              <li><strong>Maps JavaScript API</strong>を有効化</li>
+              <li>下のフォームにAPIキーを入力</li>
+            </ol>
+            <div style="margin-top:16px;display:flex;gap:8px">
+              <input id="api-key-input" type="text" placeholder="AIza..." style="flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;font-family:monospace;outline:none;" />
+              <button onclick="handleApiKey()" style="padding:10px 20px;background:var(--primary);color:white;border:none;border-radius:8px;font-weight:600;cursor:pointer;font-family:inherit;font-size:14px;">表示</button>
+            </div>
+            <p style="font-size:11px;color:var(--muted);margin-top:8px">※ APIキーはブラウザのlocalStorageに保存され、サーバーには送信されません。</p>
+          </div>
+        </div>
+      `;
+      document.getElementById('api-key-input').addEventListener('keydown', e => { if (e.key === 'Enter') handleApiKey(); });
+    }
+
+    function handleApiKey() {
+      const key = document.getElementById('api-key-input').value.trim();
+      if (key) loadGoogleMaps(key);
+    }
+
+    // Check for saved key or show setup
+    const savedKey = localStorage.getItem('gmaps_api_key');
+    if (savedKey) {
+      loadGoogleMaps(savedKey);
+    } else {
+      showSetup();
+    }
+  </script>
+</body>
+</html>

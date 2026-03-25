@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "家計簿アプリ",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/tmp/kakeibo_server.py"],
+      "port": 8080,
+      "autoPort": true
+    },
+    {
+      "name": "station-finder",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["/tmp/serve-station-finder.py"],
+      "port": 8000,
+      "autoPort": true
+    }
+  ]
+}
