@@ -78,7 +78,7 @@ def trigger_github_actions():
         return resp.status
 
 
-def trigger_property_analyze(property_url: str):
+def trigger_property_analyze(property_url: str, reply_to: str = ""):
     """物件分析用のGitHub Actionsを起動"""
     owner = os.environ["GITHUB_OWNER"]
     repo = os.environ["GITHUB_REPO"]
@@ -90,9 +90,12 @@ def trigger_property_analyze(property_url: str):
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
     }
+    payload = {"url": property_url}
+    if reply_to:
+        payload["reply_to"] = reply_to
     data = json.dumps({
         "event_type": "property_analyze",
-        "client_payload": {"url": property_url},
+        "client_payload": payload,
     }).encode("utf-8")
 
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
@@ -145,6 +148,16 @@ class handler(BaseHTTPRequestHandler):
             text = event["message"]["text"].strip()
             reply_token = event["replyToken"]
 
+            # 送信元を特定（グループ > ルーム > 個人）
+            source = event.get("source", {})
+            source_type = source.get("type", "")
+            if source_type == "group":
+                reply_to = source.get("groupId", "")
+            elif source_type == "room":
+                reply_to = source.get("roomId", "")
+            else:
+                reply_to = source.get("userId", "")
+
             # 1. SUUMO URL検出 → 物件分析
             suumo_url = extract_suumo_url(text)
             if suumo_url:
@@ -157,7 +170,7 @@ class handler(BaseHTTPRequestHandler):
                 except Exception as e:
                     print(f"Reply error: {e}")
                 try:
-                    status = trigger_property_analyze(suumo_url)
+                    status = trigger_property_analyze(suumo_url, reply_to=reply_to)
                     print(f"Property analyze triggered: {status}")
                 except Exception as e:
                     print(f"Property analyze error: {e}")

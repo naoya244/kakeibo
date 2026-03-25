@@ -33,9 +33,19 @@ def get_line_config():
     return access_token, user_id
 
 
-def send_line_message(text: str) -> bool:
-    """LINEにテキストメッセージを送信"""
+def send_line_message(text: str, to: str | None = None) -> bool:
+    """LINEにテキストメッセージを送信
+
+    Args:
+        text: 送信するメッセージ
+        to: 送信先ID（ユーザー/グループ/ルーム）。
+            Noneの場合は LINE_REPLY_TO → LINE_USER_ID の順で使用。
+    """
     access_token, user_id = get_line_config()
+
+    # 送信先の決定: 引数 > LINE_REPLY_TO > LINE_USER_ID
+    if to is None:
+        to = os.environ.get("LINE_REPLY_TO", "").strip() or user_id
 
     configuration = Configuration(access_token=access_token)
 
@@ -43,11 +53,11 @@ def send_line_message(text: str) -> bool:
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
             push_request = PushMessageRequest(
-                to=user_id,
+                to=to,
                 messages=[TextMessage(text=text)],
             )
             line_bot_api.push_message(push_request)
-            print("LINE通知を送信しました")
+            print(f"LINE通知を送信しました (to: {to[:8]}...)")
             return True
     except Exception as e:
         print(f"LINE通知の送信に失敗: {e}")

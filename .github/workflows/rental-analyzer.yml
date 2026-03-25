@@ -25,5 +25,6 @@ jobs:
         env:
           LINE_CHANNEL_ACCESS_TOKEN: ${{ secrets.LINE_CHANNEL_ACCESS_TOKEN }}
           LINE_USER_ID: ${{ secrets.LINE_USER_ID }}
+          LINE_REPLY_TO: ${{ github.event.client_payload.reply_to }}
           PROPERTY_URL: ${{ github.event.client_payload.url }}
         run: python analyzer.py
