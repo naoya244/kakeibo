@@ -44,8 +44,13 @@ def send_line_message(text: str, to: str | None = None) -> bool:
     access_token, user_id = get_line_config()
 
     # 送信先の決定: 引数 > LINE_REPLY_TO > LINE_USER_ID
+    reply_to_env = os.environ.get("LINE_REPLY_TO", "")
     if to is None:
-        to = os.environ.get("LINE_REPLY_TO", "").strip() or user_id
+        to = reply_to_env.strip() or user_id
+    print(f"[DEBUG] LINE_REPLY_TO='{reply_to_env}', LINE_USER_ID='{user_id[:8]}...', 送信先='{to[:8]}...'")
+    is_fallback = (to == user_id)
+    if is_fallback:
+        print("[DEBUG] ⚠️ LINE_REPLY_TOが空のため、LINE_USER_IDにフォールバック")
 
     configuration = Configuration(access_token=access_token)
 
