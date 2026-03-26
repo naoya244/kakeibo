@@ -70,13 +70,14 @@ SEARCH_CONDITIONS = {
     "layouts": ["1LDK", "2LDK"],  # 間取り
 }
 
-# ランク付けの重み（コスパ重視）
+# ランク付けの重み（コスパ重視 + 内装の綺麗さ）
 # スコアが高いほど良い物件
 RANKING_WEIGHTS = {
-    "cost_performance": 0.40,  # 相場に対する割安度（最重要）
-    "space_per_cost": 0.20,    # 家賃あたりの広さ
+    "cost_performance": 0.30,  # 相場に対する割安度
+    "space_per_cost": 0.15,    # 家賃あたりの広さ
     "station_distance": 0.15,  # 駅からの距離
-    "building_age": 0.15,      # 築年数
+    "building_age": 0.15,      # 築年数（上げて古い物件を下げる）
+    "interior": 0.15,          # 内装の綺麗さ・設備充実度
     "floor": 0.10,             # 階数
 }
 

@@ -29,6 +29,7 @@ from scraper import scrape_all_stations
 from ranker import rank_properties, get_top_properties, format_property_summary
 from notifier import send_line_message, send_property_notifications
 from sent_history import filter_new_properties, mark_as_sent
+from config import SCRAPING_CONFIG
 
 
 def save_results(properties: list[dict], filename: str = None):
@@ -88,8 +89,32 @@ def main():
             send_line_message("🏠 本日の物件通知\n\n条件に合う物件は見つかりませんでした。")
         return
 
-    # 2. ランク付け
-    print("\n[2/4] ランク付け中...")
+    # 2. 一次ランク付け（設備情報なし）
+    print("\n[2/5] 一次ランク付け中...")
+    ranked = rank_properties(properties)
+
+    # A/B/C上位を候補として抽出（詳細取得対象）
+    candidates = get_top_properties(ranked, ["A", "B"])
+    # C上位も含める（設備加点でBに上がる可能性）
+    c_props = [p for p in ranked if p["rank"] == "C" and p["total_score"] >= 50]
+    candidates.extend(c_props[:10])  # C上位10件まで
+
+    # 3. 候補物件の詳細ページから設備情報を取得
+    print(f"\n[3/5] 候補{len(candidates)}件の設備情報を取得中...")
+    from ranker import fetch_equipment_from_detail
+    import time as _time
+    for i, prop in enumerate(candidates):
+        url = prop.get("detail_url", "")
+        if url:
+            print(f"  [{i+1}/{len(candidates)}] {prop['building_name'][:20]}...")
+            equipment = fetch_equipment_from_detail(url)
+            prop["equipment"] = equipment
+            if equipment:
+                print(f"    設備: {len(equipment)}項目")
+            _time.sleep(SCRAPING_CONFIG["request_interval"])
+
+    # 4. 再ランク付け（設備情報込み）
+    print("\n[4/5] 最終ランク付け中...")
     ranked = rank_properties(properties)
 
     # ランク別集計
@@ -99,8 +124,7 @@ def main():
         rank_counts[rank] = rank_counts.get(rank, 0) + 1
     print(f"  ランク分布: {rank_counts}")
 
-    # 3. 結果保存
-    print("\n[3/4] 結果を保存中...")
+    # 結果保存
     save_results(ranked)
 
     # A/Bランクのみ抽出

@@ -1,11 +1,16 @@
 """
 物件のランク付けモジュール
 コスパ重視: 「XXの割に安い」を高評価
+内装の綺麗さも加味
 """
 
 from __future__ import annotations
 
-from config import RANKING_WEIGHTS, RANK_THRESHOLDS, MARKET_RENT, DEFAULT_MARKET_RENT
+import re
+import time
+import requests
+from bs4 import BeautifulSoup
+from config import RANKING_WEIGHTS, RANK_THRESHOLDS, MARKET_RENT, DEFAULT_MARKET_RENT, SCRAPING_CONFIG
 
 
 def calculate_cost_performance_score(prop: dict) -> float:
@@ -105,6 +110,100 @@ def calculate_floor_score(prop: dict) -> float:
         return 100
 
 
+def fetch_equipment_from_detail(url: str) -> list[str]:
+    """物件詳細ページから設備リストを取得"""
+    headers = {
+        "User-Agent": SCRAPING_CONFIG["user_agent"],
+        "Accept-Language": "ja,en-US;q=0.9,en;q=0.8",
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        response.encoding = "utf-8"
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        # 「部屋の特徴・設備」セクションを探す
+        for heading in soup.find_all(["h2", "h3", "h4"]):
+            if "特徴" in heading.get_text() and "設備" in heading.get_text():
+                sib = heading.find_next_sibling()
+                if sib:
+                    text = sib.get_text(strip=True)
+                    return [item.strip() for item in text.split("、") if item.strip()]
+
+        # フォールバック: テーブルから設備を探す
+        for table in soup.find_all("table"):
+            for row in table.find_all("tr"):
+                th = row.find("th")
+                td = row.find("td")
+                if th and td and "設備" in th.get_text(strip=True):
+                    text = td.get_text(strip=True)
+                    return [item.strip() for item in text.split("、") if item.strip()]
+    except Exception as e:
+        print(f"  設備情報の取得に失敗: {e}")
+
+    return []
+
+
+def calculate_interior_score(prop: dict) -> float:
+    """
+    内装の綺麗さスコア（0-100）
+    リフォーム/リノベ済み、設備の充実度で評価
+    """
+    equipment = prop.get("equipment", [])
+    if not equipment:
+        # 設備情報がない場合は築年数ベースの推定値
+        age = prop.get("building_age")
+        if age is None:
+            return 50
+        if age <= 5:
+            return 75
+        elif age <= 15:
+            return 55
+        elif age <= 25:
+            return 40
+        else:
+            return 25
+
+    score = 30  # ベーススコア
+    equipment_text = "、".join(equipment)
+
+    # リフォーム/リノベ済み（大幅加点）
+    if re.search(r"リフォーム|リノベ", equipment_text):
+        score += 30
+
+    # 水回り（内装の印象を大きく左右）
+    if re.search(r"追焚|追い焚", equipment_text):
+        score += 8
+    if "独立洗面" in equipment_text or "洗面化粧台" in equipment_text:
+        score += 8
+    if re.search(r"温水洗浄|ウォシュレット", equipment_text):
+        score += 5
+    if "浴室乾燥" in equipment_text:
+        score += 7
+    if re.search(r"システムキッチン|3口以上コンロ", equipment_text):
+        score += 5
+
+    # 内装仕上げ
+    if "フローリング" in equipment_text:
+        score += 5
+    if "バストイレ別" in equipment_text:
+        score += 5
+
+    # セキュリティ（グレード感）
+    if "オートロック" in equipment_text:
+        score += 5
+    if re.search(r"TVインターホン|モニター付", equipment_text):
+        score += 3
+    if "宅配ボックス" in equipment_text:
+        score += 3
+
+    # デザイナーズ
+    if "デザイナーズ" in equipment_text:
+        score += 10
+
+    return max(0, min(100, score))
+
+
 def calculate_total_score(prop: dict) -> float:
     """総合スコアを計算（0-100）"""
     weights = RANKING_WEIGHTS
@@ -115,9 +214,10 @@ def calculate_total_score(prop: dict) -> float:
         "station_distance": calculate_station_distance_score(prop),
         "building_age": calculate_building_age_score(prop),
         "floor": calculate_floor_score(prop),
+        "interior": calculate_interior_score(prop),
     }
 
-    total = sum(scores[key] * weights[key] for key in weights)
+    total = sum(scores[key] * weights.get(key, 0) for key in scores)
 
     # デバッグ用にスコア詳細を保存
     prop["scores"] = scores
@@ -201,6 +301,7 @@ def format_property_summary(prop: dict) -> str:
         "space_per_cost": "広さ/家賃",
         "station_distance": "駅近",
         "building_age": "築年数",
+        "interior": "内装",
         "floor": "階数",
     }
     for key, label in score_labels.items():
