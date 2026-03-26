@@ -24,6 +24,12 @@ jobs:
       - name: Install dependencies
         run: pip install -r rental-finder/requirements.txt
 
+      - name: Restore sent history cache
+        uses: actions/cache@v4
+        with:
+          path: rental-finder/sent_history.json
+          key: rental-sent-history
+
       - name: Run rental finder
         working-directory: rental-finder
         env:

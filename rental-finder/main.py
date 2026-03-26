@@ -28,6 +28,7 @@ if env_path.exists():
 from scraper import scrape_all_stations
 from ranker import rank_properties, get_top_properties, format_property_summary
 from notifier import send_line_message, send_property_notifications
+from sent_history import filter_new_properties, mark_as_sent
 
 
 def save_results(properties: list[dict], filename: str = None):
@@ -106,19 +107,27 @@ def main():
     top = get_top_properties(ranked, ["A", "B"])
     print(f"  A/Bランク: {len(top)}件")
 
+    # 3.5. 新着フィルター（送信済み物件を除外）
+    new_top = filter_new_properties(top)
+    print(f"  うち新着: {len(new_top)}件（既送信: {len(top) - len(new_top)}件）")
+
     # コンソールに表示
-    for prop in top:
+    for prop in new_top:
         print(f"\n{'─'*40}")
         print(format_property_summary(prop))
 
     # 4. LINE通知
     if dry_run:
         print(f"\n[4/4] ドライラン: LINE通知をスキップ")
-        print(f"  通知対象: {len(top)}件のA/Bランク物件")
+        print(f"  通知対象: {len(new_top)}件の新着A/Bランク物件")
     else:
         print(f"\n[4/4] LINE通知を送信中...")
-        sent = send_property_notifications(top)
-        print(f"  {sent}件のメッセージを送信しました")
+        if new_top:
+            sent = send_property_notifications(new_top)
+            mark_as_sent(new_top)
+            print(f"  {sent}件のメッセージを送信しました")
+        else:
+            print("  新着物件なし。通知をスキップ。")
 
     print(f"\n{'='*60}")
     print(f"  完了！")
